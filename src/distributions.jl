@@ -1,6 +1,8 @@
 struct WrappedDistribution{T,D} <: Gen.Distribution{T} end
 WrappedDistribution(d::Type{<:UnivariateDistribution}) =
     WrappedDistribution{eltype(d),d}()
+WrappedDistribution(d::Type{<:MultivariateDistribution}) =
+    WrappedDistribution{AbstractArray{eltype(d)},d}()
 
 (d::WrappedDistribution)() = Gen.random(d)
 
@@ -17,3 +19,5 @@ Gen.has_argument_grads(::WrappedDistribution{T,D}) where {T,D} =
 
 Gen.is_discrete(::WrappedDistribution{Int,D}) where {D} = true
 Gen.is_discrete(::WrappedDistribution{Float64,D}) where {D} = false
+Gen.is_discrete(::WrappedDistribution{T,D}) where {T <:AbstractArray{Int}, D} = true
+Gen.is_discrete(::WrappedDistribution{T,D}) where {T <:AbstractArray{Float64}, D} = false

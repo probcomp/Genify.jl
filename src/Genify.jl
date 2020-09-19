@@ -18,7 +18,7 @@ genrand(state, addr, T::Type{<:Integer}) =
     Gen.traceat(state, uniform_discrete, (typemin(T), typemax(T)), addr)
 genrand(state, addr, T::Type{<:AbstractFloat}) =
     Gen.traceat(state, uniform_continuous, (0, 1), addr)
-genrand(state, addr, dist::D) where {D <: UnivariateDistribution} =
+genrand(state, addr, dist::D) where {D <: Distributions.Distribution} =
     Gen.traceat(state, WrappedDistribution(D), params(dist), addr)
 
 "Transforms a Julia method to a dynamic Gen function."
