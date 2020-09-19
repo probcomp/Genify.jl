@@ -12,20 +12,48 @@ resolve(val::Any) = val
 resolve(gr::GlobalRef) = Core.eval(gr.mod, gr.name)
 
 "Rewritten call to `rand` that supports traced execution in Gen."
+# Strip away RNGs supplied to rand
 genrand(state, addr, rng::AbstractRNG, args...) =
     genrand(state, addr, args...)
-genrand(state, addr, dist::D) where {D <: Distributions.Distribution} =
-    Gen.traceat(state, WrappedDistribution(D), params(dist), addr)
+
+# rand for numeric types
 genrand(state, addr) =
     genrand(state, addr, Float64)
-genrand(state, addr, T::Type{<:AbstractFloat}) =
-    Gen.traceat(state, uniform_continuous, (0, 1), addr)
-genrand(state, addr, T::Type{<:AbstractFloat}, dims...) =
-    Gen.traceat(state, ArrayDistribution(uniform_continuous, dims), (0, 1), addr)
-genrand(state, addr, T::Type{<:Integer}) =
-    Gen.traceat(state, uniform_discrete, (typemin(T), typemax(T)), addr)
-genrand(state, addr, T::Type{<:Integer}, dims...) =
-    Gen.traceat(state, ArrayDistribution(uniform_discrete, dims), (typemin(T), typemax(T)), addr)
+genrand(state, addr, T::Type{<:Real}) =
+    Gen.traceat(state, TypedScalarDistribution(T), (), addr)
+genrand(state, addr, T::Type{<:Real}, dims::Tuple) =
+    Gen.traceat(state, TypedArrayDistribution(T, dims), (), addr)
+genrand(state, addr, T::Type{<:Real}, dims...) =
+    Gen.traceat(state, TypedArrayDistribution(T, dims...), (), addr)
+
+# rand for indexable collections
+const Indexable = Union{AbstractArray, AbstractRange, Tuple, AbstractString}
+flatten(c::Indexable) = c
+flatten(c::AbstractArray) = vec(c)
+genrand(state, addr, c::Indexable) =
+    Gen.traceat(state, labeled_uniform, (flatten(c),), addr)
+genrand(state, addr, c::Indexable, dims::Tuple) =
+    Gen.traceat(state, ArrayedDistribution(labeled_uniform, dims), (flatten(c),), addr)
+genrand(state, addr, c::Indexable, dims...) =
+    Gen.traceat(state, ArrayedDistribution(labeled_uniform, dims), (flatten(c),), addr)
+
+# rand for set-like collections
+genrand(state, addr, c::AbstractSet{T}) where {T} =
+    Gen.traceat(state, SetUniformDistribution{T}(), (c,), addr)
+genrand(state, addr, c::AbstractSet{T}, dims::Tuple) where {T} =
+    Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{T}(), dims), (c,), addr)
+genrand(state, addr, c::AbstractSet{T}, dims...) where {T} =
+    Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{T}(), dims), (c,), addr)
+genrand(state, addr, c::AbstractDict{T,U}) where {T,U} =
+    Gen.traceat(state, SetUniformDistribution{Pair{T,U}}(), (c,), addr)
+genrand(state, addr, c::AbstractDict{T,U}, dims::Tuple) where {T,U} =
+    Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{Pair{T,U}}(), dims), (c,), addr)
+genrand(state, addr, c::AbstractDict{T,U}, dims...) where {T,U} =
+    Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{Pair{T,U}}(), dims), (c,), addr)
+
+# rand for Distributions.jl distributions
+genrand(state, addr, dist::D) where {D <: Distributions.Distribution} =
+    Gen.traceat(state, WrappedDistribution(D), params(dist), addr)
 
 "Transforms a Julia method to a dynamic Gen function."
 function genify(fn::Function, arg_types...;
@@ -82,6 +110,7 @@ end
 "Build Julia function from IR."
 function build_func(ir::IR, name::Symbol)
     argnames = [Symbol(:arg, i) for i=1:length(arguments(ir))]
+    # TODO: Add type annotations
     fn = @eval @generated function $(name)($(argnames...))
         return IRTools.Inner.build_codeinfo($ir)
     end
