@@ -21,15 +21,33 @@ genrand(state, addr, T::Type{<:AbstractFloat}) =
 genrand(state, addr, dist::D) where {D <: UnivariateDistribution} =
     Gen.traceat(state, WrappedDistribution(D), params(dist), addr)
 
-"Converts a Julia method to a dynamic Gen function."
+"Transforms a Julia method to a dynamic Gen function."
 function genify(fn::Function, arg_types...;
-                autoname::Bool=true, verbose::Bool=false)
+                autoname::Bool=true, verbose::Bool=false, return_gf::Bool=true)
     # Get name and IR of function
     fn_name = nameof(fn)
     n_args = length(arg_types)
+    # Construct and transform IR
     ir = IR(typeof(fn), arg_types...; slots=true)
     if isnothing(ir) error("Cannot transform built-in functions.") end
     if verbose println("== Original IR =="); display(ir) end
+    ir = genify_ir(ir; autoname=autoname)
+    if verbose println("== Transformed IR =="); display(ir) end
+    # Build new Julia function
+    traced_fn = build_func(ir, gensym(fn_name))
+    if !return_gf return traced_fn end
+    # Embed Julia function within dynamic generative function
+    arg_defaults = fill(nothing, n_args)
+    has_argument_grads = fill(false, n_args)
+    accepts_output_grad = false
+    gen_fn = Gen.DynamicDSLFunction{Any}(
+        Dict(), Dict(), collect(arg_types), false, arg_defaults,
+        traced_fn, has_argument_grads, accepts_output_grad)
+    return gen_fn
+end
+
+"Transforms IR of a Julia method to support traced execution in Gen."
+function genify_ir(ir::IR; autoname::Bool=true)
     # Modify arguments
     deletearg!(ir, 1) # Remove argument that refers to function object
     state = argument!(ir; at=1) # Add argument that refers to GFI state
@@ -49,20 +67,10 @@ function genify(fn::Function, arg_types...;
             if !isa(slot, IRTools.Slot) || !(v in randvars) continue end
             slot_num = parse(Int, string(slot.id)[2:end])
             addr = ir.meta.code.slotnames[slot_num] # Look up name in CodeInfo
-            ir[v].expr.args[3] = QuoteNode(addr)
+            ir[v].expr.args[3] = QuoteNode(addr) # Replace gensym-ed address
         end
     end
-    if verbose println("== Transformed IR =="); display(ir) end
-    # Build new Julia function
-    traced_fn = build_func(ir, gensym(fn_name))
-    # Construct dynamic generative function
-    arg_defaults = fill(nothing, n_args)
-    has_argument_grads = fill(false, n_args)
-    accepts_output_grad = false
-    gen_fn = Gen.DynamicDSLFunction{Any}(
-        Dict(), Dict(), collect(arg_types), false, arg_defaults,
-        traced_fn, has_argument_grads, accepts_output_grad)
-    return gen_fn
+    return ir
 end
 
 "Build Julia function from IR."
