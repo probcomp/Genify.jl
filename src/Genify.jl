@@ -14,12 +14,18 @@ resolve(gr::GlobalRef) = Core.eval(gr.mod, gr.name)
 "Rewritten call to `rand` that supports traced execution in Gen."
 genrand(state, addr, rng::AbstractRNG, args...) =
     genrand(state, addr, args...)
-genrand(state, addr, T::Type{<:Integer}) =
-    Gen.traceat(state, uniform_discrete, (typemin(T), typemax(T)), addr)
-genrand(state, addr, T::Type{<:AbstractFloat}) =
-    Gen.traceat(state, uniform_continuous, (0, 1), addr)
 genrand(state, addr, dist::D) where {D <: Distributions.Distribution} =
     Gen.traceat(state, WrappedDistribution(D), params(dist), addr)
+genrand(state, addr) =
+    genrand(state, addr, Float64)
+genrand(state, addr, T::Type{<:AbstractFloat}) =
+    Gen.traceat(state, uniform_continuous, (0, 1), addr)
+genrand(state, addr, T::Type{<:AbstractFloat}, dims...) =
+    Gen.traceat(state, ArrayDistribution(uniform_continuous, dims), (0, 1), addr)
+genrand(state, addr, T::Type{<:Integer}) =
+    Gen.traceat(state, uniform_discrete, (typemin(T), typemax(T)), addr)
+genrand(state, addr, T::Type{<:Integer}, dims...) =
+    Gen.traceat(state, ArrayDistribution(uniform_discrete, dims), (typemin(T), typemax(T)), addr)
 
 "Transforms a Julia method to a dynamic Gen function."
 function genify(fn::Function, arg_types...;
@@ -29,7 +35,7 @@ function genify(fn::Function, arg_types...;
     n_args = length(arg_types)
     # Construct and transform IR
     ir = IR(typeof(fn), arg_types...; slots=true)
-    if isnothing(ir) error("Cannot transform built-in functions.") end
+    if isnothing(ir) error("No IR available for this method signature.") end
     if verbose println("== Original IR =="); display(ir) end
     ir = genify_ir(ir; autoname=autoname)
     if verbose println("== Transformed IR =="); display(ir) end
