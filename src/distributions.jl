@@ -59,7 +59,7 @@ Gen.random(::TypedScalarDistribution{T}) where {T} =
 
 # Integers are sampled uniformly from [typemin(T), typemax(T)]
 Gen.logpdf(d::TypedScalarDistribution{T}, x::Integer) where {T <: Integer} =
-    typemin(T) <= x <= typemax(T) ? (-log(2, sizeof(T)*8)*log(2)) : -Inf
+    typemin(T) <= x <= typemax(T) ? (-sizeof(T) * 8 * log(2)) : -Inf
 # Floats are sampled uniformly from (0, 1)
 Gen.logpdf(d::TypedScalarDistribution{T}, x::Real) where {T <: AbstractFloat} =
     0 <= x <= 1 ? 0.0 : -Inf
@@ -88,7 +88,7 @@ Gen.random(d::TypedArrayDistribution{T}) where {T} =
 # Integers are sampled uniformly from [typemin(T), typemax(T)]
 Gen.logpdf(d::TypedArrayDistribution{T}, x::AbstractArray{<:Integer}) where {T <: Integer} =
     size(x) != d.dims ? DimensionMismatch() :
-    sum(-Inf.*(typemin(T).<=x.<=typemax(T)) .* (-log(2, sizeof(T)*8)*log(2)))
+    sum(-Inf .* (typemin(T) .<= x .<= typemax(T)) .* (-sizeof(T) * 8 * log(2)))
 # Floats are sampled uniformly from (0, 1)
 Gen.logpdf(d::TypedArrayDistribution{T}, x::AbstractArray{<:Real}) where {T <: AbstractFloat} =
     size(x) != d.dims ? DimensionMismatch() : all(0 .<= x .<= 1) ? 0.0 : -Inf
