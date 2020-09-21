@@ -38,10 +38,10 @@ ArrayedDistribution(d::Gen.Distribution{T}, dims) where {T} =
 Gen.random(d::ArrayedDistribution{T}, args...) where {T} =
     broadcast(x -> Gen.random(d.dist, args...), zeros(d.dims...))
 Gen.logpdf(d::ArrayedDistribution{T}, x::AbstractArray, args...) where {T} =
-    size(x) != d.dims ? DimensionMismatch() :
+    size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
     sum(broadcast(y -> Gen.logpdf(d.dist, y, args...), x))
 Gen.logpdf_grad(d::ArrayedDistribution{T}, x::AbstractArray, args...) where {T} =
-    size(x) != d.dims ? DimensionMismatch() :
+    size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
     tuple(nothing, (nothing for a in Gen.has_argument_grads(d.dist)...))
 Gen.has_output_grad(::ArrayedDistribution{T}) where {T} =
     false
@@ -87,11 +87,12 @@ Gen.random(d::TypedArrayDistribution{T}) where {T} =
 
 # Integers are sampled uniformly from [typemin(T), typemax(T)]
 Gen.logpdf(d::TypedArrayDistribution{T}, x::AbstractArray{<:Integer}) where {T <: Integer} =
-    size(x) != d.dims ? DimensionMismatch() :
-    sum(-Inf .* (typemin(T) .<= x .<= typemax(T)) .* (-sizeof(T) * 8 * log(2)))
+    size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
+    all(typemin(T) .<= x .<= typemax(T)) ? -sizeof(T)*8*log(2)*prod(d.dims) : -Inf
 # Floats are sampled uniformly from (0, 1)
 Gen.logpdf(d::TypedArrayDistribution{T}, x::AbstractArray{<:Real}) where {T <: AbstractFloat} =
-    size(x) != d.dims ? DimensionMismatch() : all(0 .<= x .<= 1) ? 0.0 : -Inf
+    size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
+    all(0 .<= x .<= 1) ? 0.0 : -Inf
 
 Gen.logpdf_grad(::TypedArrayDistribution, x) =
     (nothing,)
