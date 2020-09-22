@@ -72,3 +72,58 @@ trace, weight = generate(genfoo, (10,), choicemap(:c => rand(Float64, 10, 10)))
 @test weight == 0
 
 end
+
+@testset "rand(::Indexable|Setlike) statements" begin
+
+function foo(dims...)
+    a = rand([:h, :e, :l, :l, :o], dims...)
+    b = rand("world", dims...)
+    c = rand(1:5, dims...)
+    d = rand((9, 6, 42), dims...)
+    e = rand(Set("hello"), dims...)
+    f = rand(Dict(zip("world", "hello")), dims...)
+end
+
+genfoo = genify(foo)
+
+# Check types
+trace = simulate(genfoo, ())
+@test trace[:a] isa Symbol
+@test trace[:b] isa Char
+@test trace[:c] isa Int
+@test trace[:d] isa Int
+@test trace[:e] isa Char
+@test trace[:f] isa Pair{Char,Char}
+
+# Test array sizes
+trace = simulate(genfoo, (10, 10))
+@test size(trace[:a]) == (10, 10)
+@test size(trace[:b]) == (10, 10)
+@test size(trace[:c]) == (10, 10)
+@test size(trace[:d]) == (10, 10)
+@test size(trace[:e]) == (10, 10)
+@test size(trace[:f]) == (10, 10)
+
+# Test ranges
+@test all(x in [:h, :e, :l, :l, :o] for x in trace[:a])
+@test all(x in "world" for x in trace[:b])
+@test all(x in 1:5 for x in trace[:c])
+@test all(x in (9, 6, 42) for x in trace[:d])
+@test all(x in Set("hello") for x in trace[:e])
+@test all(x in Dict(zip("world", "hello")) for x in trace[:f])
+
+# Test generate with constraints
+trace, weight = generate(genfoo, (), choicemap(:a => :l))
+@test weight == log(2/5)
+trace, weight = generate(genfoo, (), choicemap(:b => 'w'))
+@test weight == log(1/5)
+trace, weight = generate(genfoo, (), choicemap(:c => 3))
+@test weight == log(1/5)
+trace, weight = generate(genfoo, (), choicemap(:d => 42))
+@test weight == log(1/3)
+trace, weight = generate(genfoo, (), choicemap(:e => 'l'))
+@test weight == log(1/4)
+trace, weight = generate(genfoo, (), choicemap(:f => ('o' => 'e')))
+@test weight == log(1/5)
+
+end
