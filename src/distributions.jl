@@ -26,11 +26,15 @@ Gen.is_discrete(::WrappedDistribution{T,D}) where {T,D <: DiscreteDistribution} 
 "Repeats a distribution across an array of arbitrary dimensions."
 struct ArrayedDistribution{T} <: Gen.Distribution{T}
     dist::Gen.Distribution
-    dims::Tuple{Vararg{Int}}
+    dims::Dims
 end
-ArrayedDistribution(D::Type{<:Gen.Distribution{T}}, dims) where {T} =
+ArrayedDistribution(D::Type{<:Gen.Distribution{T}}, dims::Dims) where {T} =
     ArrayedDistribution{Array{T,length(dims)}}(D(), dims)
-ArrayedDistribution(d::Gen.Distribution{T}, dims) where {T} =
+ArrayedDistribution(D::Type{<:Gen.Distribution{T}}, dims...) where {T} =
+    ArrayedDistribution{Array{T,length(dims)}}(D(), dims)
+ArrayedDistribution(d::Gen.Distribution{T}, dims::Dims) where {T} =
+    ArrayedDistribution{Array{T,length(dims)}}(d, dims)
+ArrayedDistribution(d::Gen.Distribution{T}, dims...) where {T} =
     ArrayedDistribution{Array{T,length(dims)}}(d, dims)
 
 (d::ArrayedDistribution)(args...) = Gen.random(d, args...)
@@ -73,9 +77,9 @@ Gen.has_argument_grads(::TypedScalarDistribution) =
 
 "Typed array distribution, equivalent to `rand(T, dims...)` for type `T`."
 struct TypedArrayDistribution{T<:Real,N} <: Gen.Distribution{Array{T,N}}
-    dims::NTuple{N,Int}
+    dims::Dims{N}
 end
-TypedArrayDistribution(T::Type, dims::NTuple{N,Int}) where {N} =
+TypedArrayDistribution(T::Type, dims::Dims{N}) where {N} =
     TypedArrayDistribution{T,N}(dims)
 TypedArrayDistribution(T::Type, dims...) =
     TypedArrayDistribution{T,length(dims)}(dims)

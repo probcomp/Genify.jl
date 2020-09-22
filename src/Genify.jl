@@ -6,6 +6,8 @@ using Gen, Distributions, Random
 using MacroTools, IRTools
 using IRTools: IR, arguments, argument!, deletearg!, recurse!, xcall
 
+const IRVar = IRTools.Variable
+
 include("distributions.jl")
 
 resolve(val::Any) = val
@@ -21,10 +23,10 @@ genrand(state, addr) =
     genrand(state, addr, Float64)
 genrand(state, addr, T::Type{<:Real}) =
     Gen.traceat(state, TypedScalarDistribution(T), (), addr)
-genrand(state, addr, T::Type{<:Real}, dims::Tuple) =
+genrand(state, addr, T::Type{<:Real}, dims::Dims) =
     Gen.traceat(state, TypedArrayDistribution(T, dims), (), addr)
-genrand(state, addr, T::Type{<:Real}, dims...) =
-    Gen.traceat(state, TypedArrayDistribution(T, dims...), (), addr)
+genrand(state, addr, T::Type{<:Real}, d::Integer, dims::Integer...) =
+    Gen.traceat(state, TypedArrayDistribution(T, d, dims...), (), addr)
 
 # rand for indexable collections
 const Indexable = Union{AbstractArray, AbstractRange, Tuple, AbstractString}
@@ -32,28 +34,32 @@ flatten(c::Indexable) = c
 flatten(c::AbstractArray) = vec(c)
 genrand(state, addr, c::Indexable) =
     Gen.traceat(state, labeled_uniform, (flatten(c),), addr)
-genrand(state, addr, c::Indexable, dims::Tuple) =
+genrand(state, addr, c::Indexable, dims::Dims) =
     Gen.traceat(state, ArrayedDistribution(labeled_uniform, dims), (flatten(c),), addr)
-genrand(state, addr, c::Indexable, dims...) =
-    Gen.traceat(state, ArrayedDistribution(labeled_uniform, dims), (flatten(c),), addr)
+genrand(state, addr, c::Indexable, d::Integer, dims::Integer...) =
+    Gen.traceat(state, ArrayedDistribution(labeled_uniform, d, dims...), (flatten(c),), addr)
 
 # rand for set-like collections
 genrand(state, addr, c::AbstractSet{T}) where {T} =
     Gen.traceat(state, SetUniformDistribution{T}(), (c,), addr)
-genrand(state, addr, c::AbstractSet{T}, dims::Tuple) where {T} =
+genrand(state, addr, c::AbstractSet{T}, dims::Dims) where {T} =
     Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{T}(), dims), (c,), addr)
-genrand(state, addr, c::AbstractSet{T}, dims...) where {T} =
-    Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{T}(), dims), (c,), addr)
+genrand(state, addr, c::AbstractSet{T}, d::Integer, dims::Integer...) where {T} =
+    Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{T}(), d, dims...), (c,), addr)
 genrand(state, addr, c::AbstractDict{T,U}) where {T,U} =
     Gen.traceat(state, SetUniformDistribution{Pair{T,U}}(), (c,), addr)
-genrand(state, addr, c::AbstractDict{T,U}, dims::Tuple) where {T,U} =
+genrand(state, addr, c::AbstractDict{T,U}, dims::Dims) where {T,U} =
     Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{Pair{T,U}}(), dims), (c,), addr)
-genrand(state, addr, c::AbstractDict{T,U}, dims...) where {T,U} =
-    Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{Pair{T,U}}(), dims), (c,), addr)
+genrand(state, addr, c::AbstractDict{T,U}, d::Integer, dims::Integer...) where {T,U} =
+    Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{Pair{T,U}}(), d, dims...), (c,), addr)
 
 # rand for Distributions.jl distributions
 genrand(state, addr, dist::D) where {D <: Distributions.Distribution} =
     Gen.traceat(state, WrappedDistribution(D), params(dist), addr)
+genrand(state, addr, dist::D, dims::Dims) where {D <: Distributions.Distribution} =
+    Gen.traceat(state, ArrayedDistribution(WrappedDistribution(D), dims), params(dist), addr)
+genrand(state, addr, dist::D, d::Integer, dims::Integer...) where {D <: Distributions.Distribution} =
+    Gen.traceat(state, ArrayedDistribution(WrappedDistribution(D), d, dims...), params(dist), addr)
 
 "Transforms a Julia method to a dynamic Gen function."
 function genify(fn::Function, arg_types...;
@@ -86,23 +92,30 @@ function genify_ir(ir::IR; autoname::Bool=true)
     # Modify arguments
     deletearg!(ir, 1) # Remove argument that refers to function object
     state = argument!(ir; at=1) # Add argument that refers to GFI state
-    randvars = Set{IRTools.Variable}() # Track which IR variables are random
+    rand_addrs = Dict{IRVar,IRVar}() # Map from rand statements to addresses
     # Iterate over IR
     for (x, stmt) in ir
         if isexpr(stmt.expr, :call)
             # Replace calls to Base.rand with calls to genrand
             fn, args = stmt.expr.args[1], stmt.expr.args[2:end]
+            is_apply = fn == GlobalRef(Core, :_apply)
+            if (is_apply) fn, args = args[1], args[2:end] end
             if resolve(fn) !== Base.rand continue end
-            push!(randvars, x) # Remember if this variable is a call to rand
-            addr = QuoteNode(gensym())
-            ir[x] = xcall(genrand, state, addr, args...)
+            addr = insert!(ir, x, QuoteNode(gensym()))
+            rand_addrs[x] = addr # Remember IRVar for address
+            if is_apply
+                a = insert!(ir, x, xcall(GlobalRef(Core, :tuple), state, addr))
+                ir[x] = xcall(GlobalRef(Core, :_apply), genrand, a, args...)
+            else
+                ir[x] = xcall(genrand, state, addr, args...)
+            end
         elseif isexpr(stmt.expr, :(=)) && autoname
             # Attempt to automatically generate address names from slot names
             slot, v = stmt.expr.args
-            if !isa(slot, IRTools.Slot) || !(v in randvars) continue end
+            if !isa(slot, IRTools.Slot) || !(v in keys(rand_addrs)) continue end
             slot_num = parse(Int, string(slot.id)[2:end])
             addr = ir.meta.code.slotnames[slot_num] # Look up name in CodeInfo
-            ir[v].expr.args[3] = QuoteNode(addr) # Replace gensym-ed address
+            ir[rand_addrs[v]] = QuoteNode(addr) # Replace gensym-ed address
         end
     end
     return ir
