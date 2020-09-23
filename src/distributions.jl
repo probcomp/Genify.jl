@@ -1,20 +1,22 @@
 "Wraps Distributions.jl distributions as Gen.jl distributions."
-struct WrappedDistribution{T,D <: Distributions.Distribution} <: Gen.Distribution{T} end
-WrappedDistribution(D::Type{<:UnivariateDistribution}) =
-    WrappedDistribution{eltype(D),D}()
-WrappedDistribution(D::Type{<:MultivariateDistribution}) =
-    WrappedDistribution{Vector{eltype(D)},D}()
-WrappedDistribution(D::Type{<:MatrixDistribution}) =
-    WrappedDistribution{Matrix{eltype(D)},D}()
+struct WrappedDistribution{T,D <: Distributions.Distribution} <: Gen.Distribution{T}
+    dist::D
+end
+WrappedDistribution(d::D) where {D <: UnivariateDistribution} =
+    WrappedDistribution{eltype(D),D}(d)
+WrappedDistribution(d::D) where {D <: MultivariateDistribution} =
+    WrappedDistribution{Vector{eltype(D)},D}(d)
+WrappedDistribution(d::D) where {D <: MatrixDistribution} =
+    WrappedDistribution{Matrix{eltype(D)},D}(d)
 
 (d::WrappedDistribution)(args...) = Gen.random(d, args...)
 
 Gen.random(d::WrappedDistribution{T,D}, args...) where {T,D} =
-    rand(D(args...))
+    rand(d.dist)
 Gen.logpdf(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
-    Distributions.logpdf(D(args...), x)
+    Distributions.logpdf(d.dist, x)
 Gen.logpdf_grad(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
-    tuple(nothing, (nothing for p in params(D(args...)))...)
+    tuple(nothing, (nothing for p in params(d.dist))...)
 Gen.has_output_grad(::WrappedDistribution{T,D}) where {T,D} =
     false
 Gen.has_argument_grads(::WrappedDistribution{T,D}) where {T,D} =

@@ -29,11 +29,11 @@ trace = simulate(genfoo, (10,))
 
 # Test generate with constraints
 trace, weight = generate(genfoo, (10,), choicemap(:a => 0))
-@test isapprox(weight, -8*log(2))
+@test weight ≈ -8*log(2)
 trace, weight = generate(genfoo, (10,), choicemap(:b => zeros(Int16, 10)))
-@test isapprox(weight, -16*log(2) * 10)
+@test weight ≈ -16*log(2) * 10
 trace, weight = generate(genfoo, (10,), choicemap(:c => zeros(Int16, 10, 10)))
-@test isapprox(weight, -32*log(2) * 10 * 10)
+@test weight ≈ -32*log(2) * 10 * 10
 
 end
 
@@ -114,16 +114,57 @@ trace = simulate(genfoo, (10, 10))
 
 # Test generate with constraints
 trace, weight = generate(genfoo, (), choicemap(:a => :l))
-@test weight == log(2/5)
+@test weight ≈ log(2/5)
 trace, weight = generate(genfoo, (), choicemap(:b => 'w'))
-@test weight == log(1/5)
+@test weight ≈ log(1/5)
 trace, weight = generate(genfoo, (), choicemap(:c => 3))
-@test weight == log(1/5)
+@test weight ≈ log(1/5)
 trace, weight = generate(genfoo, (), choicemap(:d => 42))
-@test weight == log(1/3)
+@test weight ≈ log(1/3)
 trace, weight = generate(genfoo, (), choicemap(:e => 'l'))
-@test weight == log(1/4)
+@test weight ≈ log(1/4)
 trace, weight = generate(genfoo, (), choicemap(:f => ('o' => 'e')))
-@test weight == log(1/5)
+@test weight ≈ log(1/5)
+
+end
+
+@testset "rand(::Distributions.Distribution) statements" begin
+
+function foo(dims...)
+    a = rand(Dirichlet(5, 2))
+    b = rand(Categorical(a))
+    c = rand(Wishart(b+2, [1.0 0.0; 0.0 1.0]))
+    d = rand(Normal(0, 1), dims...)
+end
+
+genfoo = genify(foo)
+
+# Check types
+trace = simulate(genfoo, (10,))
+@test trace[:a] isa Vector{Float64}
+@test trace[:b] isa Int
+@test trace[:c] isa Matrix{Float64}
+@test trace[:d] isa Vector{Float64}
+
+# Test array sizes
+@test size(trace[:a]) == (5,)
+@test size(trace[:b]) == ()
+@test size(trace[:c]) == (2, 2)
+@test size(trace[:d]) == (10,)
+
+# Test ranges
+@test all(0 .<= trace[:a] .<= 1)
+@test all(1 .<= trace[:b] .<= 5)
+@test insupport(Wishart, trace[:c])
+
+# Test generate with constraints
+trace, weight = generate(genfoo, (), choicemap(:a => ones(5)/5))
+@test weight ≈ Distributions.logpdf(Dirichlet(5, 2), ones(5)/5)
+trace, weight = generate(genfoo, (), choicemap(:a => ones(5)/5, :b => 5))
+@test weight ≈ Distributions.logpdf(Dirichlet(5, 2), ones(5)/5) + log(1/5)
+trace, weight = generate(genfoo, (), choicemap(:c => [1 0; 0 1]))
+@test weight ≈ Distributions.logpdf(Wishart(trace[:b]+2, [1 0; 0 1]), [1 0; 0 1])
+trace, weight = generate(genfoo, (10, 10), choicemap(:d => zeros(10, 10)))
+@test weight ≈ Gen.logpdf(normal, 0, 0, 1) * 100
 
 end

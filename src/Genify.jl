@@ -55,11 +55,11 @@ genrand(state, addr, c::AbstractDict{T,U}, d::Integer, dims::Integer...) where {
 
 # rand for Distributions.jl distributions
 genrand(state, addr, dist::D) where {D <: Distributions.Distribution} =
-    Gen.traceat(state, WrappedDistribution(D), params(dist), addr)
+    Gen.traceat(state, WrappedDistribution(dist), params(dist), addr)
 genrand(state, addr, dist::D, dims::Dims) where {D <: Distributions.Distribution} =
-    Gen.traceat(state, ArrayedDistribution(WrappedDistribution(D), dims), params(dist), addr)
+    Gen.traceat(state, ArrayedDistribution(WrappedDistribution(dist), dims), params(dist), addr)
 genrand(state, addr, dist::D, d::Integer, dims::Integer...) where {D <: Distributions.Distribution} =
-    Gen.traceat(state, ArrayedDistribution(WrappedDistribution(D), d, dims...), params(dist), addr)
+    Gen.traceat(state, ArrayedDistribution(WrappedDistribution(dist), d, dims...), params(dist), addr)
 
 "Transforms a Julia method to a dynamic Gen function."
 function genify(fn::Function, arg_types...;
