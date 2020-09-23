@@ -71,7 +71,7 @@ function foo(alpha::Real, beta::Real)
     return coin
 end
 
-genfoo = genify(foo, Int, Float64)
+genfoo = genify(foo, Int, Float64; autoname=true)
 julia_fn = genfoo.julia_function
 @test methods(julia_fn).ms[1].sig == Tuple{typeof(julia_fn), Any, Real, Real}
 @test genfoo.arg_types == [Real, Real]
@@ -92,5 +92,36 @@ trace, weight, _, discard =
 @test trace[:coin] == true
 @test discard[:coin] == false
 @test weight == log(0.25) - log(0.75)
+
+end
+
+@testset "Automatic random variable naming" begin
+
+# Test straight line code
+function foo(x::Int)
+    p = rand(Beta(1, 1))
+    probs = [p, 1-p]
+    y = rand(Categorical(probs))
+    return (x+y)
+end
+
+genfoo = genify(foo, Int; autoname=true)
+choices, _, _ = propose(genfoo, (0,))
+@test has_value(choices, :p) && has_value(choices, :y)
+
+# Test branching code
+function foo(x::Bool)
+    if x
+        y = rand(Uniform(0, 1))
+    else
+        z = rand(Normal(0, 1))
+    end
+end
+
+genfoo = genify(foo, Bool; autoname=true)
+choices, _, _ = propose(genfoo, (true,))
+@test has_value(choices, :y) && !has_value(choices, :z)
+choices, _, _ = propose(genfoo, (false,))
+@test !has_value(choices, :y) && has_value(choices, :z)
 
 end
