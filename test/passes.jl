@@ -1,4 +1,4 @@
-using Genify: resolve, genify_ir
+using Genify: resolve, genify_ir, build_func
 using MacroTools: isexpr
 using IRTools: IR
 
@@ -60,5 +60,37 @@ end
 ir_in = IR(typeof(foo))
 ir_out = genify_ir(ir_in; autoname=false)
 @test check_ir(ir_in, ir_out)
+
+end
+
+@testset "Generative function building" begin
+
+function foo(alpha::Real, beta::Real)
+    p = rand(Beta(alpha, beta))
+    coin = rand(Bernoulli(p))
+    return coin
+end
+
+genfoo = genify(foo, Int, Float64)
+julia_fn = genfoo.julia_function
+@test methods(julia_fn).ms[1].sig == Tuple{typeof(julia_fn), Any, Real, Real}
+@test genfoo.arg_types == [Real, Real]
+
+# Test simulate
+trace = simulate(genfoo, (1, 1))
+@test 0 <= trace[:p] <= 1
+@test trace[:coin] in [true, false]
+
+# Test generate
+trace, weight = generate(genfoo, (1, 1), choicemap(:p => 0.25, :coin => false))
+@test trace[:p] == 0.25
+@test trace[:coin] == false
+
+# Test update
+trace, weight, _, discard =
+    update(trace, (1, 1), (NoChange(), NoChange()), choicemap(:coin => true))
+@test trace[:coin] == true
+@test discard[:coin] == false
+@test weight == log(0.25) - log(0.75)
 
 end
