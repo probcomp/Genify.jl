@@ -36,13 +36,19 @@ end
 
 "Automatically generate user-friendly address names."
 function autoname_ir!(ir::IR, rand_addrs::Dict)
+    slotnames = ir.meta.code.slotnames
+    slotcount = Dict{Int,Int}()
     for (x, stmt) in ir
         if isexpr(stmt.expr, :(=))
             # Attempt to automatically generate address names from slot names
             slot, v = stmt.expr.args
             if !isa(slot, IRTools.Slot) || !(v in keys(rand_addrs)) continue end
-            slot_num = parse(Int, string(slot.id)[2:end])
-            addr = ir.meta.code.slotnames[slot_num] # Look up name in CodeInfo
+            slot_id = parse(Int, string(slot.id)[2:end])
+            addr = slotnames[slot_id] # Look up name in CodeInfo
+            if get!(slotcount, slot_id, 0) > 0 # Ensure uniqueness
+                addr =Symbol(addr, :_, slotcount[slot_id])
+            end
+            slotcount[slot_id] += 1
             ir[rand_addrs[v]] = QuoteNode(addr) # Replace gensym-ed address
         end
     end

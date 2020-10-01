@@ -115,14 +115,14 @@ function foo(x::Bool)
     if x
         y = rand(Uniform(0, 1))
     else
-        z = rand(Normal(0, 1))
+        y = rand(Normal(0, 1))
     end
 end
 
 genfoo = genify(foo, Bool; autoname=true)
 choices, _, _ = propose(genfoo, (true,))
-@test has_value(choices, :y) && !has_value(choices, :z)
+@test has_value(choices, :y) && !has_value(choices, :y_1)
 choices, _, _ = propose(genfoo, (false,))
-@test !has_value(choices, :y) && has_value(choices, :z)
+@test !has_value(choices, :y) && has_value(choices, :y_1)
 
 end
