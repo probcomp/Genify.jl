@@ -1,5 +1,5 @@
 using Test, Genify
 using Random, Distributions, Gen
 
-include("passes.jl")
-include("rand.jl")
+include("transform.jl")
+include("primitives.jl")
