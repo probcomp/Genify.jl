@@ -10,13 +10,13 @@ function check_ir(ir_in::IR, ir_out::IR)
         if !isexpr(e_in, :call) continue end
         if unwrap(e_in.args[1]) == :rand
             if !(isexpr(e_out, :call) &&
-                 e_out.args[1] == GlobalRef(Genify, :tracer))
+                 e_out.args[1] == GlobalRef(Genify, :trace))
                 error("$e_in is not traced")
             end
         elseif e_in.args[1] == GlobalRef(Core, :_apply)
             if !(isexpr(e_out, :call) &&
                  e_out.args[1] == GlobalRef(Core, :_apply) &&
-                 e_out.args[2] == GlobalRef(Genify, :tracer))
+                 e_out.args[2] == GlobalRef(Genify, :trace))
                 error("$e_in is not traced")
             end
         end
@@ -72,7 +72,7 @@ function foo(alpha::Real, beta::Real)
     return coin
 end
 
-genfoo = genify(foo, Int, Float64; autoname=true)
+genfoo = genify(foo, Int, Float64)
 julia_fn = genfoo.julia_function
 @test methods(julia_fn).ms[1].sig == Tuple{typeof(julia_fn), Any, Real, Real}
 @test genfoo.arg_types == [Real, Real]
@@ -106,7 +106,7 @@ function foo(x::Int)
     return (x+y)
 end
 
-genfoo = genify(foo, Int; autoname=true)
+genfoo = genify(foo, Int; scheme=Genify.SlotNaming())
 choices, _, _ = propose(genfoo, (0,))
 @test has_value(choices, :p) && has_value(choices, :y)
 
@@ -119,7 +119,7 @@ function foo(x::Bool)
     end
 end
 
-genfoo = genify(foo, Bool; autoname=true)
+genfoo = genify(foo, Bool; scheme=Genify.SlotNaming())
 choices, _, _ = propose(genfoo, (true,))
 @test has_value(choices, :y) && !has_value(choices, :y_1)
 choices, _, _ = propose(genfoo, (false,))
