@@ -74,7 +74,7 @@ end
 
 genfoo = genify(foo, Int, Float64)
 julia_fn = genfoo.julia_function
-@test methods(julia_fn).ms[1].sig == Tuple{typeof(julia_fn), Any, Real, Real}
+@test Genify.signature(julia_fn) == Tuple{Real, Real}
 @test genfoo.arg_types == [Real, Real]
 
 # Test simulate
@@ -93,6 +93,49 @@ trace, weight, _, discard =
 @test trace[:coin] == true
 @test discard[:coin] == false
 @test weight == log(0.25) - log(0.75)
+
+end
+
+@testset "Nested generative functions" begin
+
+function model(mu::Real)
+    theta = rand(LogNormal(mu, 1))
+    obs = observe(theta)
+end
+
+function observe(theta::Real)
+    m1 = rand(Normal(theta, 1))
+    m2 = rand(Normal(theta, 2))
+    m3 = rand(Normal(theta, 3))
+    return (m1, m2, m3)
+end
+
+genmodel = genify(model, Real)
+
+# Test simulate
+trace = simulate(genmodel, (1,))
+@test trace[:theta] >= 0
+@test trace[:obs] isa Tuple{Float64, Float64, Float64}
+@test trace[:obs => :m1] isa Float64
+@test trace[:obs => :m2] isa Float64
+@test trace[:obs => :m3] isa Float64
+
+# Test generate
+observations = choicemap((:obs => :m1, 3), (:obs => :m2, 3), (:obs => :m3, 3))
+trace, weight = generate(genmodel, (1,), observations)
+@test trace[:obs => :m1] == 3
+@test trace[:obs => :m2] == 3
+@test trace[:obs => :m3] == 3
+@test weight ≈ sum(Gen.logpdf(normal, 3, trace[:theta], i) for i in 1:3)
+
+# Test regenerate
+prev_trace = trace
+trace, weight, _ = regenerate(trace, (1,), (NoChange(),), select(:theta))
+@test trace[:obs] == prev_trace[:obs]
+
+prev_trace = trace
+trace, weight, _ = regenerate(trace, (1,), (NoChange(),), select(:obs))
+@test trace[:theta] == prev_trace[:theta]
 
 end
 

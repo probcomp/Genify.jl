@@ -1,19 +1,33 @@
 using IRTools: IR, arguments, argument!, deletearg!, recurse!, xcall, @dynamo
 
+const gen_fn_cache = Dict{Tuple,Gen.DynamicDSLFunction}()
+const randprims = Set([:rand, :randn, :randexp, :randperm, :shuffle])
+const untraced = setdiff(Set([names(Base); names(Core)]), randprims)
+
 abstract type NamingScheme end
 struct NoNaming <: NamingScheme end
 struct SlotNaming <: NamingScheme end
 
-const gen_fn_cache = Dict{Tuple,Gen.DynamicDSLFunction}()
-const randprims = Set([:rand, :randn, :randexp, :randperm, :shuffle])
-const untraced = setdiff(Set([names(Base); names(Core)]), randprims)
+struct TracedFunction{S <: Tuple} <: Function
+    fn # Original function
+    scheme::NamingScheme # Naming scheme
+end
+
+TracedFunction(fn, sig::Type{<:Tuple}) =
+    TracedFunction{sig}(fn, SlotNaming())
+TracedFunction(fn, sig::Type{<:Tuple}, scheme::NamingScheme) =
+    TracedFunction{sig}(fn, scheme)
+
+(tf::TracedFunction{S})(state, args...) where {S} =
+    splice(tf.scheme, state, tf.fn, args::S...)
+
+signature(::TracedFunction{S}) where {S} = S
 
 unwrap(val) = val
 unwrap(ref::GlobalRef) = ref.name
 
 "Transforms a Julia method to a dynamic Gen function."
-function genify(fn, arg_types...;
-                scheme::NamingScheme=SlotNaming(), return_gf::Bool=true)
+function genify(fn, arg_types...; scheme::NamingScheme=SlotNaming())
     # Get name and IR of function
     fn_name = nameof(fn)
     n_args = length(arg_types)
@@ -21,14 +35,9 @@ function genify(fn, arg_types...;
     meta = IRTools.meta(Tuple{typeof(fn), arg_types...})
     if isnothing(meta) error("No IR available for this method signature.") end
     arg_types = collect(meta.method.sig.parameters)[2:end]
-    # Build new Julia function
-    arg_names = [Symbol(:arg, i) for i=1:length(arg_types)]
-    args = [:($(n)::$(QuoteNode(t))) for (n, t) in zip(arg_names, arg_types)]
-    traced_fn = @eval function $(gensym(fn_name))(state, $(args...))
-        return splice($scheme, state, $fn, $(arg_names...))
-    end
-    if !return_gf return traced_fn end
-    # Embed Julia function within dynamic generative function
+    # Construct traced Julia function
+    traced_fn = TracedFunction(fn, Tuple{arg_types...}, scheme)
+    # Embed traced function within dynamic generative function
     arg_defaults = fill(nothing, n_args)
     has_argument_grads = fill(false, n_args)
     accepts_output_grad = false
@@ -38,7 +47,7 @@ function genify(fn, arg_types...;
     return gen_fn
 end
 
-"Memoized call to genify."
+"Memoized [`genify`](@ref) that compiles specialized versions of itself."
 function genified(fn, arg_types...; scheme::NamingScheme=SlotNaming())
     gen_fn = genify(fn, arg_types...; scheme=scheme)
     fn_type = typeof(fn)
@@ -98,9 +107,10 @@ function transform!(ir::IR; scheme_arg::Bool=false, autoname::Bool=false)
             is_apply = fn == GlobalRef(Core, :_apply)
             if (is_apply) fn, args = args[1], args[2:end] end
             # TODO: More careful filtering
-            if fn.mod in [Core, Base] && !(fn.name in randprims) continue end
-            if fn.name in untraced continue end
-            addr = insert!(ir, x, QuoteNode(gensym(fn.name)))
+            if fn isa GlobalRef && fn.mod in (Core, Base) continue end
+            if unwrap(fn) in untraced continue end
+            addr = unwrap(fn) isa Symbol ? gensym(unwrap(fn)) : gensym()
+            addr = insert!(ir, x, QuoteNode(addr))
             rand_addrs[x] = addr # Remember IRVar for address
             if is_apply
                 a = insert!(ir, x, xcall(GlobalRef(Core, :tuple), state, addr, fn))
