@@ -81,9 +81,6 @@ function foo(dims...)
     f = rand(Dict(zip("world", "hello")), dims...)
 end
 
-ir = IR(typeof(foo))
-ir = transform!(ir, autoname=true)
-
 genfoo = genify(foo)
 
 # Check types

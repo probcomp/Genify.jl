@@ -47,7 +47,7 @@ function foo(x::Int)
 end
 
 ir_in = IR(typeof(foo), Int)
-ir_out = transform!(copy(ir_in); autoname=false)
+ir_out = transform!(copy(ir_in))
 @test check_ir(ir_in, ir_out)
 
 # Test rand with varargs
@@ -59,7 +59,7 @@ function foo(dims...)
 end
 
 ir_in = IR(typeof(foo))
-ir_out = transform!(copy(ir_in); autoname=false)
+ir_out = transform!(copy(ir_in))
 @test check_ir(ir_in, ir_out)
 
 end
@@ -93,6 +93,37 @@ trace, weight, _, discard =
 @test trace[:coin] == true
 @test discard[:coin] == false
 @test weight == log(0.25) - log(0.75)
+
+end
+
+@testset "Automatic random variable naming" begin
+
+# Test straight line code
+function foo(x::Int)
+    p = rand(Beta(1, 1))
+    probs = [p, 1-p]
+    y = rand(Categorical(probs))
+    return (x+y)
+end
+
+genfoo = genify(foo, Int; useslots=true)
+choices, _, _ = propose(genfoo, (0,))
+@test has_value(choices, :p) && has_value(choices, :y)
+
+# Test branching code
+function foo(x::Bool)
+    if x
+        y = rand(Uniform(0, 1))
+    else
+        y = rand(Normal(0, 1))
+    end
+end
+
+genfoo = genify(foo, Bool; useslots=true)
+choices, _, _ = propose(genfoo, (true,))
+@test has_value(choices, :y) && !has_value(choices, :y_1)
+choices, _, _ = propose(genfoo, (false,))
+@test !has_value(choices, :y) && has_value(choices, :y_1)
 
 end
 
@@ -137,35 +168,9 @@ prev_trace = trace
 trace, weight, _ = regenerate(trace, (1,), (NoChange(),), select(:obs))
 @test trace[:theta] == prev_trace[:theta]
 
-end
-
-@testset "Automatic random variable naming" begin
-
-# Test straight line code
-function foo(x::Int)
-    p = rand(Beta(1, 1))
-    probs = [p, 1-p]
-    y = rand(Categorical(probs))
-    return (x+y)
-end
-
-genfoo = genify(foo, Int; scheme=Genify.SlotNaming())
-choices, _, _ = propose(genfoo, (0,))
-@test has_value(choices, :p) && has_value(choices, :y)
-
-# Test branching code
-function foo(x::Bool)
-    if x
-        y = rand(Uniform(0, 1))
-    else
-        y = rand(Normal(0, 1))
-    end
-end
-
-genfoo = genify(foo, Bool; scheme=Genify.SlotNaming())
-choices, _, _ = propose(genfoo, (true,))
-@test has_value(choices, :y) && !has_value(choices, :y_1)
-choices, _, _ = propose(genfoo, (false,))
-@test !has_value(choices, :y) && has_value(choices, :y_1)
+# Test non-recursion
+genmodel = genify(model, Real; recurse=false)
+choices, _, _ = propose(genmodel, (1,))
+@test :obs ∉ keys(nested_view(choices))
 
 end
