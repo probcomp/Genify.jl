@@ -7,59 +7,59 @@ const randprims = Set([
 ## Base.rand ##
 
 # Strip away RNGs supplied to rand
-trace(options::Options, state, addr::Address, ::typeof(rand), rng::AbstractRNG, args...) =
-    trace(options::Options, state, addr::Address, rand, args...)
+@inline trace(options::Options, state, addr::Address, ::typeof(rand), rng::AbstractRNG, args...) =
+    trace(options, state, addr::Address, rand, args...)
 
 # rand for numeric types
-trace(options::Options, state, addr::Address, ::typeof(rand)) =
-    trace(options::Options, state, addr::Address, rand, Float64)
-trace(::Options, state, addr::Address, ::typeof(rand), T::Type{<:Real}) =
+@inline trace(options::Options, state, addr::Address, ::typeof(rand)) =
+    trace(options, state, addr::Address, rand, Float64)
+@inline trace(::Options, state, addr::Address, ::typeof(rand), T::Type{<:Real}) =
     Gen.traceat(state, TypedScalarDistribution(T), (), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), T::Type{<:Real}, ::Tuple{}) =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), T::Type{<:Real}, ::Tuple{}) =
     Gen.traceat(state, TypedScalarDistribution(T), (), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), T::Type{<:Real}, dims::Dims) =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), T::Type{<:Real}, dims::Dims) =
     Gen.traceat(state, TypedArrayDistribution(T, dims), (), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), T::Type{<:Real}, d::Integer, dims::Integer...) =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), T::Type{<:Real}, d::Integer, dims::Integer...) =
     Gen.traceat(state, TypedArrayDistribution(T, d, dims...), (), addr)
 
 # rand for indexable collections
 const Indexable = Union{AbstractArray, AbstractRange, Tuple, AbstractString}
 flatten(c::Indexable) = c
 flatten(c::AbstractArray) = vec(c)
-trace(::Options, state, addr::Address, ::typeof(rand), c::Indexable) =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::Indexable) =
     Gen.traceat(state, labeled_uniform, (flatten(c),), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), c::Indexable, ::Tuple{}) =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::Indexable, ::Tuple{}) =
     Gen.traceat(state, labeled_uniform, (flatten(c),), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), c::Indexable, dims::Dims) =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::Indexable, dims::Dims) =
     Gen.traceat(state, ArrayedDistribution(labeled_uniform, dims), (flatten(c),), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), c::Indexable, d::Integer, dims::Integer...) =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::Indexable, d::Integer, dims::Integer...) =
     Gen.traceat(state, ArrayedDistribution(labeled_uniform, d, dims...), (flatten(c),), addr)
 
 # rand for set-like collections
-trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractSet{T}) where {T} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractSet{T}) where {T} =
     Gen.traceat(state, SetUniformDistribution{T}(), (c,), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractSet{T}, ::Tuple{}) where {T} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractSet{T}, ::Tuple{}) where {T} =
     Gen.traceat(state, SetUniformDistribution{T}(), (c,), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractSet{T}, dims::Dims) where {T} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractSet{T}, dims::Dims) where {T} =
     Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{T}(), dims), (c,), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractSet{T}, d::Integer, dims::Integer...) where {T} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractSet{T}, d::Integer, dims::Integer...) where {T} =
     Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{T}(), d, dims...), (c,), addr)
 
-trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractDict{T,U}) where {T,U} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractDict{T,U}) where {T,U} =
     Gen.traceat(state, SetUniformDistribution{Pair{T,U}}(), (c,), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractDict{T,U}, ::Tuple{}) where {T,U} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractDict{T,U}, ::Tuple{}) where {T,U} =
     Gen.traceat(state, SetUniformDistribution{Pair{T,U}}(), (c,), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractDict{T,U}, dims::Dims) where {T,U} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractDict{T,U}, dims::Dims) where {T,U} =
     Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{Pair{T,U}}(), dims), (c,), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractDict{T,U}, d::Integer, dims::Integer...) where {T,U} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), c::AbstractDict{T,U}, d::Integer, dims::Integer...) where {T,U} =
     Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{Pair{T,U}}(), d, dims...), (c,), addr)
 
 # rand for Distributions.jl distributions
-trace(::Options, state, addr::Address, ::typeof(rand), dist::D) where {D <: Distributions.Distribution} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), dist::D) where {D <: Distributions.Distribution} =
     Gen.traceat(state, WrappedDistribution(dist), params(dist), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), dist::D, ::Tuple{}) where {D <: Distributions.Distribution} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), dist::D, ::Tuple{}) where {D <: Distributions.Distribution} =
     Gen.traceat(state, WrappedDistribution(dist), params(dist), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), dist::D, dims::Dims) where {D <: Distributions.Distribution} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), dist::D, dims::Dims) where {D <: Distributions.Distribution} =
     Gen.traceat(state, ArrayedDistribution(WrappedDistribution(dist), dims), params(dist), addr)
-trace(::Options, state, addr::Address, ::typeof(rand), dist::D, d::Integer, dims::Integer...) where {D <: Distributions.Distribution} =
+@inline trace(::Options, state, addr::Address, ::typeof(rand), dist::D, d::Integer, dims::Integer...) where {D <: Distributions.Distribution} =
     Gen.traceat(state, ArrayedDistribution(WrappedDistribution(dist), d, dims...), params(dist), addr)

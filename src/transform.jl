@@ -1,7 +1,5 @@
 using IRTools: IR, arguments, argument!, deletearg!, recurse!, xcall, @dynamo
 
-const gen_fn_cache = Dict{Tuple,Gen.DynamicDSLFunction}()
-
 """
     Options{recurse::Bool, useslots::Bool, scheme::Symbol}
 
@@ -88,10 +86,9 @@ end
 function genified(options::Options, fn, arg_types::Type...)
     gen_fn = genify(fn, arg_types...; options=options)
     op_type, fn_type = typeof(options), typeof(fn)
-    gen_fn_cache[(op_type, fn_type, arg_types...)] = gen_fn
     args = [:(::$(QuoteNode(Type{T}))) for T in arg_types]
     @eval function genified(options::$op_type, fn::$fn_type, $(args...))
-        return gen_fn_cache[($op_type, $fn_type, $(arg_types...))]
+        return $gen_fn
     end
     return gen_fn
 end

@@ -11,9 +11,9 @@ WrappedDistribution(d::D) where {D <: MatrixDistribution} =
 
 (d::WrappedDistribution)(args...) = Gen.random(d, args...)
 
-Gen.random(d::WrappedDistribution{T,D}, args...) where {T,D} =
+@inline Gen.random(d::WrappedDistribution{T,D}, args...) where {T,D} =
     rand(d.dist)
-Gen.logpdf(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
+@inline Gen.logpdf(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
     Distributions.logpdf(d.dist, x)
 Gen.logpdf_grad(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
     tuple(nothing, (nothing for p in params(d.dist))...)
@@ -41,9 +41,9 @@ ArrayedDistribution(d::Gen.Distribution{T}, dims...) where {T} =
 
 (d::ArrayedDistribution)(args...) = Gen.random(d, args...)
 
-Gen.random(d::ArrayedDistribution{T}, args...) where {T} =
+@inline Gen.random(d::ArrayedDistribution{T}, args...) where {T} =
     broadcast(x -> Gen.random(d.dist, args...), zeros(d.dims...))
-Gen.logpdf(d::ArrayedDistribution{T}, x::AbstractArray, args...) where {T} =
+@inline Gen.logpdf(d::ArrayedDistribution{T}, x::AbstractArray, args...) where {T} =
     size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
     sum(broadcast(y -> Gen.logpdf(d.dist, y, args...), x))
 Gen.logpdf_grad(d::ArrayedDistribution{T}, x::AbstractArray, args...) where {T} =
@@ -60,14 +60,14 @@ TypedScalarDistribution(T::Type) = TypedScalarDistribution{T}()
 
 (d::TypedScalarDistribution)() = Gen.random(d)
 
-Gen.random(::TypedScalarDistribution{T}) where {T} =
+@inline Gen.random(::TypedScalarDistribution{T}) where {T} =
     rand(T)
 
 # Integers are sampled uniformly from [typemin(T), typemax(T)]
-Gen.logpdf(d::TypedScalarDistribution{T}, x::Integer) where {T <: Integer} =
+@inline Gen.logpdf(d::TypedScalarDistribution{T}, x::Integer) where {T <: Integer} =
     typemin(T) <= x <= typemax(T) ? (-sizeof(T) * 8 * log(2)) : -Inf
 # Floats are sampled uniformly from (0, 1)
-Gen.logpdf(d::TypedScalarDistribution{T}, x::Real) where {T <: AbstractFloat} =
+@inline Gen.logpdf(d::TypedScalarDistribution{T}, x::Real) where {T <: AbstractFloat} =
     0 <= x <= 1 ? 0.0 : -Inf
 
 Gen.logpdf_grad(::TypedScalarDistribution, x) =
@@ -88,15 +88,15 @@ TypedArrayDistribution(T::Type, dims...) =
 
 (d::TypedArrayDistribution)() = Gen.random(d)
 
-Gen.random(d::TypedArrayDistribution{T}) where {T} =
+@inline Gen.random(d::TypedArrayDistribution{T}) where {T} =
     rand(T, d.dims...)
 
 # Integers are sampled uniformly from [typemin(T), typemax(T)]
-Gen.logpdf(d::TypedArrayDistribution{T}, x::AbstractArray{<:Integer}) where {T <: Integer} =
+@inline Gen.logpdf(d::TypedArrayDistribution{T}, x::AbstractArray{<:Integer}) where {T <: Integer} =
     size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
     all(typemin(T) .<= x .<= typemax(T)) ? -sizeof(T)*8*log(2)*prod(d.dims) : -Inf
 # Floats are sampled uniformly from (0, 1)
-Gen.logpdf(d::TypedArrayDistribution{T}, x::AbstractArray{<:Real}) where {T <: AbstractFloat} =
+@inline Gen.logpdf(d::TypedArrayDistribution{T}, x::AbstractArray{<:Real}) where {T <: AbstractFloat} =
     size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
     all(0 .<= x .<= 1) ? 0.0 : -Inf
 
@@ -116,14 +116,14 @@ SetUniformDistribution() = SetUniformDistribution{Any}()
 
 (d::SetUniformDistribution)(args...) = Gen.random(d, args...)
 
-Gen.random(::SetUniformDistribution{T}, support::AbstractSet{T}) where {T} =
+@inline Gen.random(::SetUniformDistribution{T}, support::AbstractSet{T}) where {T} =
     rand(support)
-Gen.random(::SetUniformDistribution{Pair{T,U}}, support::AbstractDict{T,U}) where {T,U} =
+@inline Gen.random(::SetUniformDistribution{Pair{T,U}}, support::AbstractDict{T,U}) where {T,U} =
     rand(support)
 
-Gen.logpdf(d::SetUniformDistribution{T}, x::T, support::AbstractSet{T}) where {T} =
+@inline Gen.logpdf(d::SetUniformDistribution{T}, x::T, support::AbstractSet{T}) where {T} =
     x in support ? -log(length(support)) : -Inf
-Gen.logpdf(d::SetUniformDistribution{Pair{T,U}}, x::Pair{T,U}, support::AbstractDict{T,U}) where {T,U} =
+@inline Gen.logpdf(d::SetUniformDistribution{Pair{T,U}}, x::Pair{T,U}, support::AbstractDict{T,U}) where {T,U} =
     x in support ? -log(length(support)) : -Inf
 
 Gen.logpdf_grad(::SetUniformDistribution, x, support) =
