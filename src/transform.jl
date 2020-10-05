@@ -135,10 +135,6 @@ function trace end
     return :($(GlobalRef(Gen, :traceat))(state, $gen_fn, args, addr))
 end
 
-# Ensure type constructors aren't traced (assumes constructors are not random)
-trace(options::Options, state, addr::Address,
-      D::Type{<:Distributions.Distribution}, args...) = D(args...)
-
 "Transform the IR by wrapping sub-calls in `trace`(@ref)."
 function transform!(ir::IR, options::Options=MinimalOptions())
     recurse, useslots, scheme = unpack(options)
@@ -150,24 +146,29 @@ function transform!(ir::IR, options::Options=MinimalOptions())
     for (x, stmt) in ir
         if !isexpr(stmt.expr, :call) continue end
         # Unpack call
-        fn, args = stmt.expr.args[1], stmt.expr.args[2:end]
-        is_apply = fn == GlobalRef(Core, :_apply)
-        if (is_apply) fn, args = args[1], args[2:end] end
+        fn, args, calltype = unpack_call(stmt.expr)
         # Filter out untraced calls
         if !is_traced(ir, fn, recurse) continue end
         # Generate address name from function name
         addr = unwrap(fn) isa Symbol ? gensym(unwrap(fn)) : gensym()
         addr = insert!(ir, x, QuoteNode(addr))
         rand_addrs[x] = addr # Remember IRVar for address
-        # Wrap call within `trace`
-        if is_apply
-            trace_apply!(ir, x, QuoteNode(options), state, addr, fn, args)
-        else
-            trace_call!(ir, x, QuoteNode(options), state, addr, fn, args)
-        end
+        # Rewrite statement by wrapping call within `trace`
+        rewrite!(ir, x, calltype, QuoteNode(options), state, addr, fn, args)
     end
     if (useslots) ir = autoname!(ir, rand_addrs) end
     return ir
+end
+
+"Unpack calls, special casing `Core._apply` and `Core._apply_iterate`."
+function unpack_call(expr::Expr)
+    fn, args, calltype = expr.args[1], expr.args[2:end], :call
+    if fn == GlobalRef(Core, :_apply)
+        fn, args, calltype = args[1], args[2:end], :apply
+    elseif fn == GlobalRef(Core, :_apply_iterate)
+        fn, args, calltype = args[2], args[3:end], :apply_iterate
+    end
+    return fn, args, calltype
 end
 
 "Determine whether a called function should be traced."
@@ -189,15 +190,23 @@ is_traced(ir, fn::IRTools.Variable, recurse::Bool) =
 is_traced(ir, fn, recurse::Bool) =
     true
 
-function trace_apply!(ir, var, options, state, addr, fn, args)
-    preargs = xcall(GlobalRef(Core, :tuple), options, state, addr, fn)
-    preargs = insert!(ir, var, preargs)
-    ir[var] = xcall(GlobalRef(Core, :_apply), GlobalRef(Genify, :trace),
-                    preargs, args...)
-end
-
-function trace_call!(ir, var, options, state, addr, fn, args)
-    ir[var] = xcall(GlobalRef(Genify, :trace), options, state, addr, fn, args...)
+"Rewrites the statement by wrapping call within `trace`."
+function rewrite!(ir, var, calltype, options, state, addr, fn, args)
+    if calltype == :call # Handle basic calls
+        ir[var] = xcall(GlobalRef(Genify, :trace),
+                        options, state, addr, fn, args...)
+    elseif calltype == :apply # Handle `Core._apply`
+        preargs = xcall(GlobalRef(Core, :tuple), options, state, addr, fn)
+        preargs = insert!(ir, var, preargs)
+        ir[var] = xcall(GlobalRef(Core, :_apply),
+                        GlobalRef(Genify, :trace), preargs, args...)
+    elseif calltype == :apply_iterate # Handle `Core._apply_iterate`
+        preargs = xcall(GlobalRef(Core, :tuple), options, state, addr, fn)
+        preargs = insert!(ir, var, preargs)
+        ir[var] = xcall(GlobalRef(Core, :_apply_iterate),
+                        GlobalRef(Base, :iterate),
+                        GlobalRef(Genify, :trace), preargs, args...)
+    end
 end
 
 "Automatically generate user-friendly address names."
