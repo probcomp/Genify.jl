@@ -1,8 +1,6 @@
 using IRTools: IR, arguments, argument!, deletearg!, recurse!, xcall, @dynamo
 
 const gen_fn_cache = Dict{Tuple,Gen.DynamicDSLFunction}()
-const randprims = Set([:rand, :randn, :randexp, :randperm, :shuffle])
-const untraced = setdiff(Set([names(Base); names(Core)]), randprims)
 
 """
     Options{recurse::Bool, useslots::Bool, scheme::Symbol}
@@ -128,6 +126,8 @@ call to [`genify`](@ref).
 function trace end
 
 @generated function trace(options::Options, state, addr::Address, fn, args...)
+    recurse, _, _ = unpack(options())
+    if !recurse return :(fn(args...)) end
     meta = IRTools.meta(Tuple{fn, args...})
     if isnothing(meta) return :(fn(args...)) end
     arg_types = collect(meta.method.sig.parameters)[2:end]
@@ -136,7 +136,8 @@ function trace end
 end
 
 # Ensure type constructors aren't traced (assumes constructors are not random)
-trace(options::Options, state, addr::Address, T::Type, args...) = T(args...)
+trace(options::Options, state, addr::Address,
+      D::Type{<:Distributions.Distribution}, args...) = D(args...)
 
 "Transform the IR by wrapping sub-calls in `trace`(@ref)."
 function transform!(ir::IR, options::Options=MinimalOptions())
@@ -152,12 +153,8 @@ function transform!(ir::IR, options::Options=MinimalOptions())
         fn, args = stmt.expr.args[1], stmt.expr.args[2:end]
         is_apply = fn == GlobalRef(Core, :_apply)
         if (is_apply) fn, args = args[1], args[2:end] end
-        # Filter out calls in Core, Base, and non-primitives if not recursing
-        if (!recurse && !(unwrap(fn) in randprims) ||
-            fn isa GlobalRef && fn.mod in (Core, Base) ||
-            unwrap(fn) in untraced)
-            continue
-        end
+        # Filter out untraced calls
+        if !is_traced(ir, fn, recurse) continue end
         # Generate address name from function name
         addr = unwrap(fn) isa Symbol ? gensym(unwrap(fn)) : gensym()
         addr = insert!(ir, x, QuoteNode(addr))
@@ -173,19 +170,34 @@ function transform!(ir::IR, options::Options=MinimalOptions())
     return ir
 end
 
+"Determine whether a called function should be traced."
+function is_traced(ir, fn::GlobalRef, recurse::Bool)
+    if !isdefined(fn.mod, fn.name) return error("$fn not defined.") end
+    val = getfield(fn.mod, fn.name)
+    if val in randprims return true end # Primitives are always traced
+    if !recurse return false end # Only trace primitives if not recursing
+    for m in (Base, Core, Core.Intrinsics) # Filter out Base, Core, etc.
+        if isdefined(m, fn.name) && getfield(m, fn.name) == val return false end
+    end
+    if val isa Type && val <: Sampleable return false end # Filter distributions
+    return true
+end
+is_traced(ir, fn::Function, recurse::Bool) =
+    fn in randprims || recurse
+is_traced(ir, fn::IRTools.Variable, recurse::Bool) =
+    !haskey(ir, fn) || is_traced(ir, ir[fn], recurse)
+is_traced(ir, fn, recurse::Bool) =
+    true
+
 function trace_apply!(ir, var, options, state, addr, fn, args)
-    preargs = unwrap(fn) in randprims ?
-        xcall(GlobalRef(Core, :tuple), state, addr, fn) :
-        xcall(GlobalRef(Core, :tuple), options, state, addr, fn)
+    preargs = xcall(GlobalRef(Core, :tuple), options, state, addr, fn)
     preargs = insert!(ir, var, preargs)
     ir[var] = xcall(GlobalRef(Core, :_apply), GlobalRef(Genify, :trace),
                     preargs, args...)
 end
 
 function trace_call!(ir, var, options, state, addr, fn, args)
-    ir[var] = unwrap(fn) in randprims ?
-        xcall(GlobalRef(Genify, :trace), state, addr, fn, args...) :
-        xcall(GlobalRef(Genify, :trace), options, state, addr, fn, args...)
+    ir[var] = xcall(GlobalRef(Genify, :trace), options, state, addr, fn, args...)
 end
 
 "Automatically generate user-friendly address names."
