@@ -1,4 +1,4 @@
-using IRTools: IR, arguments, argument!, deletearg!, recurse!, xcall, @dynamo
+using IRTools: IR, arguments, argument!, deletearg!, recurse!, xcall, @dynamo, blocks, insert!, var, renumber, insertafter!
 
 """
     Options{recurse::Bool, useslots::Bool, scheme::Symbol}
@@ -135,10 +135,25 @@ end
 "Transform the IR by wrapping sub-calls in `trace`(@ref)."
 function transform!(ir::IR, options::Options=MinimalOptions())
     recurse, useslots, scheme = unpack(options)
+    num_blks = length(blocks(ir))
+    
     # Modify arguments
     state = argument!(ir; at=1) # Add argument that refers to GFI state
     optarg = argument!(ir; at=1) # Add argument for options
     rand_addrs = Dict() # Map from rand statements to address statements
+   
+    ir = renumber(ir)
+    # Generate counters for each block and insert into IR.
+    counters = map(1 : num_blks) do ind
+        pushfirst!(ir, 0)
+    end
+    ref = insertafter!(ir, counters[1], Expr(:tuple, counters...))
+
+    # Insert increment expressions into each block.
+    for (v, blk) in zip(counters, blocks(ir))
+        push!(blk, Expr(:+=, v, 1))
+    end
+    
     # Iterate over IR
     for (x, stmt) in ir
         if !isexpr(stmt.expr, :call) continue end
@@ -146,14 +161,25 @@ function transform!(ir::IR, options::Options=MinimalOptions())
         fn, args, calltype = unpack_call(stmt.expr)
         # Filter out untraced calls
         if !is_traced(ir, fn, recurse) continue end
-        # Generate address name from function name
-        addr = unwrap(fn) isa Symbol ? gensym(unwrap(fn)) : gensym()
-        addr = insert!(ir, x, QuoteNode(addr))
+        # Generate address name according to block counter tuples.
+        if unwrap(fn) isa Symbol
+            # If we can unwrap to a Symbol, we can name the head of a pair address with the function name.
+            addr = insert!(ir, x, Expr(:call, :(=>), unwrap(fn), ref))
+        else
+            # Else, just use the counters.
+            addr = insert!(ir, x, ref)
+        end
         rand_addrs[x] = addr # Remember IRVar for address
         # Rewrite statement by wrapping call within `trace`
         rewrite!(ir, x, calltype, QuoteNode(options), state, addr, fn, args)
     end
+   
+    # Try autonaming transform according to slot names.
     if (useslots) ir = autoname!(ir, rand_addrs) end
+ 
+    ir = renumber(ir)
+    display(ir)
+    println()
     return ir
 end
 
@@ -181,11 +207,11 @@ function is_traced(ir, fn::GlobalRef, recurse::Bool)
     return true
 end
 is_traced(ir, fn::Function, recurse::Bool) =
-    fn in randprims || recurse
+fn in randprims || recurse
 is_traced(ir, fn::IRTools.Variable, recurse::Bool) =
-    !haskey(ir, fn) || is_traced(ir, ir[fn], recurse)
+!haskey(ir, fn) || is_traced(ir, ir[fn], recurse)
 is_traced(ir, fn, recurse::Bool) =
-    true
+true
 
 "Rewrites the statement by wrapping call within `trace`."
 function rewrite!(ir, var, calltype, options, state, addr, fn, args)

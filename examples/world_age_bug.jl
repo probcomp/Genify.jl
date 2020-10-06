@@ -1,9 +1,8 @@
 module WorldAgeBug
 
 using Random, Distributions, Gen
-include("../src/Genify.jl")
-using .Genify
-using .Genify: unwrap, transform!
+using Genify
+using Genify: unwrap, transform!
 
 # This hits a world age bug.
 
