@@ -125,6 +125,14 @@ choices, _, _ = propose(genfoo, (true,))
 choices, _, _ = propose(genfoo, (false,))
 @test !has_value(choices, :y) && has_value(choices, :y_1)
 
+# Test broadcast in code
+function foo()
+    x = [1.0, 3.0, 5.0] .+ rand(Normal(0.0, 1.0))
+end
+genfoo = genify(foo; useslots=true)
+choices, _, _ = propose(genfoo, ())
+@test has_value(choices, :x)
+
 end
 
 @testset "Nested generative functions" begin
