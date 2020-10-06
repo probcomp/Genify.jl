@@ -1,18 +1,21 @@
 ## Rewrites random primitives as Gen distributions
-
 const randprims = Set([
-    Base.rand, Random.randn, Random.randexp, Random.randperm, Random.shuffle
+    rand, randn, randexp, randperm, shuffle, sample
 ])
 
-## Base.rand ##
+## rand ##
 
 # Strip away RNGs supplied to rand
 @inline trace(options::Options, state, addr::Address, ::typeof(rand), rng::AbstractRNG, args...) =
     trace(options, state, addr::Address, rand, args...)
 
-# rand for numeric types
+# Default to uniformly sampling Float64 values from [0, 1]
 @inline trace(options::Options, state, addr::Address, ::typeof(rand)) =
     trace(options, state, addr::Address, rand, Float64)
+@inline trace(options::Options, state, addr::Address, ::typeof(rand), d::Integer, dims::Integer...) =
+    trace(options, state, addr::Address, rand, Float64, d, dims...)
+
+# rand for numeric types
 @inline trace(::Options, state, addr::Address, ::typeof(rand), T::Type{<:Real}) =
     Gen.traceat(state, TypedScalarDistribution(T), (), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(rand), T::Type{<:Real}, ::Tuple{}) =
@@ -63,3 +66,59 @@ flatten(c::AbstractArray) = vec(c)
     Gen.traceat(state, ArrayedDistribution(WrappedDistribution(dist), dims), params(dist), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(rand), dist::D, d::Integer, dims::Integer...) where {D <: Distributions.Distribution} =
     Gen.traceat(state, ArrayedDistribution(WrappedDistribution(dist), d, dims...), params(dist), addr)
+
+## randn ##
+
+# Strip away RNGs supplied to randn
+@inline trace(options::Options, state, addr::Address, ::typeof(randn), rng::AbstractRNG, args...) =
+    trace(options, state, addr::Address, randn, args...)
+
+# Default to sampling Float64 values
+@inline trace(options::Options, state, addr::Address, ::typeof(randn)) =
+    trace(options, state, addr::Address, randn, Float64)
+@inline trace(options::Options, state, addr::Address, ::typeof(randn), dims::Dims) =
+    trace(options, state, addr::Address, randn, Float64, dims)
+@inline trace(options::Options, state, addr::Address, ::typeof(randn), d::Integer, dims::Integer...) =
+    trace(options, state, addr::Address, randn, Float64, d, dims...)
+
+# Forward sampling of all other Float types
+@inline trace(::Options, state, addr::Address, ::typeof(randn), T::Type{<:AbstractFloat}, args...) =
+    trace(options, state, addr::Address, randn, Float64, args...)
+
+# Sampling of Float64 values
+@inline trace(::Options, state, addr::Address, ::typeof(randn), T::Type{Float64}) =
+    Gen.traceat(state, Gen.normal, (0, 1), addr)
+@inline trace(::Options, state, addr::Address, ::typeof(randn), T::Type{Float64}, ::Tuple{}) =
+    Gen.traceat(state, Gen.normal, (0, 1), addr)
+@inline trace(::Options, state, addr::Address, ::typeof(randn), T::Type{Float64}, dims::Dims) =
+    Gen.traceat(state, ArrayedDistribution(Gen.normal, dims), (0, 1), addr)
+@inline trace(::Options, state, addr::Address, ::typeof(randn), T::Type{Float64}, d::Integer, dims::Integer...) =
+    Gen.traceat(state, ArrayedDistribution(Gen.normal, d, dims...), (0, 1), addr)
+
+## randexp ##
+
+# Strip away RNGs supplied to randexp
+@inline trace(options::Options, state, addr::Address, ::typeof(randexp), rng::AbstractRNG, args...) =
+    trace(options, state, addr::Address, randexp, args...)
+
+# Default to sampling Float64 values
+@inline trace(options::Options, state, addr::Address, ::typeof(randexp)) =
+    trace(options, state, addr::Address, randexp, Float64)
+@inline trace(options::Options, state, addr::Address, ::typeof(randexp), dims::Dims) =
+    trace(options, state, addr::Address, randexp, Float64, dims)
+@inline trace(options::Options, state, addr::Address, ::typeof(randexp), d::Integer, dims::Integer...) =
+    trace(options, state, addr::Address, randexp, Float64, d, dims...)
+
+# Forward sampling of all other Float types
+@inline trace(::Options, state, addr::Address, ::typeof(randexp), T::Type{<:AbstractFloat}, args...) =
+    trace(options, state, addr::Address, randexp, Float64, args...)
+
+# Sampling of Float64 values
+@inline trace(::Options, state, addr::Address, ::typeof(randexp), T::Type{Float64}) =
+    Gen.traceat(state, Gen.exponential, (1,), addr)
+@inline trace(::Options, state, addr::Address, ::typeof(randexp), T::Type{Float64}, ::Tuple{}) =
+    Gen.traceat(state, Gen.exponential, (1,), addr)
+@inline trace(::Options, state, addr::Address, ::typeof(randexp), T::Type{Float64}, dims::Dims) =
+    Gen.traceat(state, ArrayedDistribution(Gen.exponential, dims), (1,), addr)
+@inline trace(::Options, state, addr::Address, ::typeof(randexp), T::Type{Float64}, d::Integer, dims::Integer...) =
+    Gen.traceat(state, ArrayedDistribution(Gen.exponential, d, dims...), (1,), addr)

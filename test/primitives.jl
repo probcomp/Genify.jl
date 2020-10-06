@@ -165,3 +165,39 @@ trace, weight = generate(genfoo, (10, 10), choicemap(:d => zeros(10, 10)))
 @test weight ≈ Gen.logpdf(normal, 0, 0, 1) * 100
 
 end
+
+@testset "randn and randexp statements" begin
+
+function foo(dims...)
+    a = randn()
+    b = randexp()
+    c = randn(Float64, dims)
+    d = randexp(dims...)
+end
+
+genfoo = genify(foo)
+
+# Check types
+trace = simulate(genfoo, (10,))
+@test trace[:a] isa Float64
+@test trace[:b] isa Float64
+@test trace[:c] isa Vector{Float64}
+@test trace[:d] isa Vector{Float64}
+
+# Test array sizes
+@test size(trace[:a]) == ()
+@test size(trace[:b]) == ()
+@test size(trace[:c]) == (10,)
+@test size(trace[:d]) == (10,)
+
+# Test ranges
+@test all(trace[:b] .>= 0)
+@test all(trace[:d] .>= 0)
+
+# Test generate with constraints
+trace, weight = generate(genfoo, (), choicemap(:a => 1, :b => 1))
+@test weight ≈ Gen.logpdf(normal, 0, 1, 1) + Gen.logpdf(exponential, 1, 1)
+trace, weight = generate(genfoo, (10,), choicemap(:c => ones(10), :d => ones(10)))
+@test weight ≈ 10 * (Gen.logpdf(normal, 0, 1, 1) + Gen.logpdf(exponential, 1, 1))
+
+end
