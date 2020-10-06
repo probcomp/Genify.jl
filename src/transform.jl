@@ -142,7 +142,6 @@ function transform!(ir::IR, options::Options=MinimalOptions())
     optarg = argument!(ir; at=1) # Add argument for options
     rand_addrs = Dict() # Map from rand statements to address statements
    
-    ir = renumber(ir)
     # Generate counters for each block and insert into IR.
     counters = map(1 : num_blks) do ind
         pushfirst!(ir, 0)
