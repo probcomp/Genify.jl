@@ -3,7 +3,9 @@ module Genify
 export genify
 
 using Gen, Distributions, Random
-using MacroTools, IRTools
+using MacroTools
+using IRTools
+using IRTools: domtree, blocks, branches
 
 const Address = Union{Symbol, Pair{Symbol}}
 
