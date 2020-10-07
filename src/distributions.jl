@@ -1,3 +1,5 @@
+import StatsBase: sample
+
 "Wraps Distributions.jl distributions as Gen.jl distributions."
 struct WrappedDistribution{T,D <: Distributions.Distribution} <: Gen.Distribution{T}
     dist::D
@@ -107,8 +109,27 @@ Gen.has_output_grad(::TypedArrayDistribution) =
 Gen.has_argument_grads(::TypedArrayDistribution) =
     ()
 
-"Labeled uniform distribution over some indexable collection."
-@dist labeled_uniform(labels) = labels[uniform_discrete(1, length(labels))]
+"Labeled uniform distribution over indexable collections."
+struct LabeledUniformDistribution{T} <: Gen.Distribution{T} end
+LabeledUniformDistribution() = LabeledUniformDistribution{Any}()
+
+(d::LabeledUniformDistribution)(args...) = Gen.random(d, args...)
+
+@inline Gen.random(::LabeledUniformDistribution{T}, labels::AbstractArray{T}) where {T} =
+    sample(labels)
+@inline Gen.random(::LabeledUniformDistribution{T}, labels::Tuple{Vararg{T}}) where {T} =
+    rand(labels)
+@inline Gen.random(::LabeledUniformDistribution{T}, labels::AbstractString) where {T <: AbstractChar} =
+    rand(labels)
+@inline Gen.logpdf(::LabeledUniformDistribution{T}, x::T, labels::Indexable) where {T} =
+    log(sum(x == l for l in labels) / length(labels))
+
+Gen.logpdf_grad(::LabeledUniformDistribution, x, labels) =
+    (nothing, nothing)
+Gen.has_output_grad(::LabeledUniformDistribution) =
+    false
+Gen.has_argument_grads(::LabeledUniformDistribution) =
+    (nothing,)
 
 "Labeled uniform distribution over set-like collections."
 struct SetUniformDistribution{T} <: Gen.Distribution{T} end
@@ -121,9 +142,9 @@ SetUniformDistribution() = SetUniformDistribution{Any}()
 @inline Gen.random(::SetUniformDistribution{Pair{T,U}}, support::AbstractDict{T,U}) where {T,U} =
     rand(support)
 
-@inline Gen.logpdf(d::SetUniformDistribution{T}, x::T, support::AbstractSet{T}) where {T} =
+@inline Gen.logpdf(::SetUniformDistribution{T}, x::T, support::AbstractSet{T}) where {T} =
     x in support ? -log(length(support)) : -Inf
-@inline Gen.logpdf(d::SetUniformDistribution{Pair{T,U}}, x::Pair{T,U}, support::AbstractDict{T,U}) where {T,U} =
+@inline Gen.logpdf(::SetUniformDistribution{Pair{T,U}}, x::Pair{T,U}, support::AbstractDict{T,U}) where {T,U} =
     x in support ? -log(length(support)) : -Inf
 
 Gen.logpdf_grad(::SetUniformDistribution, x, support) =

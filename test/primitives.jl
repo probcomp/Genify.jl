@@ -1,3 +1,5 @@
+@testset "Random primitives" begin
+
 @testset "rand(::Type{<:Integer}) statements" begin
 
 function foo(n::Int)
@@ -199,5 +201,7 @@ trace, weight = generate(genfoo, (), choicemap(:a => 1, :b => 1))
 @test weight ≈ Gen.logpdf(normal, 0, 1, 1) + Gen.logpdf(exponential, 1, 1)
 trace, weight = generate(genfoo, (10,), choicemap(:c => ones(10), :d => ones(10)))
 @test weight ≈ 10 * (Gen.logpdf(normal, 0, 1, 1) + Gen.logpdf(exponential, 1, 1))
+
+end
 
 end
