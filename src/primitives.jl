@@ -27,23 +27,23 @@ const randprims = Set([
 
 # rand for indexable collections
 @inline trace(::Options, state, addr::Address, ::typeof(rand), c::T) where {T <: Indexable} =
-    Gen.traceat(state, LabeledUniformDistribution{eltype(T)}(), (c,), addr)
+    Gen.traceat(state, LabeledUniform{eltype(T)}(), (c,), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(rand), c::T, ::Tuple{}) where {T <: Indexable} =
-    Gen.traceat(state, LabeledUniformDistribution{eltype(T)}(), (c,), addr)
+    Gen.traceat(state, LabeledUniform{eltype(T)}(), (c,), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(rand), c::T, dims::Dims) where {T <: Indexable} =
-    Gen.traceat(state, ArrayedDistribution(LabeledUniformDistribution{eltype(T)}(), dims), (c,), addr)
+    Gen.traceat(state, ArrayedDistribution(LabeledUniform{eltype(T)}(), dims), (c,), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(rand), c::T, d::Integer, dims::Integer...) where {T <: Indexable} =
-    Gen.traceat(state, ArrayedDistribution(LabeledUniformDistribution{eltype(T)}(), d, dims...), (c,), addr)
+    Gen.traceat(state, ArrayedDistribution(LabeledUniform{eltype(T)}(), d, dims...), (c,), addr)
 
 # rand for set-like collections
 @inline trace(::Options, state, addr::Address, ::typeof(rand), c::T) where {T <: Setlike} =
-    Gen.traceat(state, SetUniformDistribution{eltype(T)}(), (c,), addr)
+    Gen.traceat(state, SetUniform{eltype(T)}(), (c,), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(rand), c::T, ::Tuple{}) where {T <: Setlike} =
-    Gen.traceat(state, SetUniformDistribution{eltype(T)}(), (c,), addr)
+    Gen.traceat(state, SetUniform{eltype(T)}(), (c,), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(rand), c::T, dims::Dims) where {T <: Setlike} =
-    Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{eltype(T)}(), dims), (c,), addr)
+    Gen.traceat(state, ArrayedDistribution(SetUniform{eltype(T)}(), dims), (c,), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(rand), c::T, d::Integer, dims::Integer...) where {T <: Setlike} =
-    Gen.traceat(state, ArrayedDistribution(SetUniformDistribution{eltype(T)}(), d, dims...), (c,), addr)
+    Gen.traceat(state, ArrayedDistribution(SetUniform{eltype(T)}(), d, dims...), (c,), addr)
 
 # rand for Distributions.jl distributions
 @inline trace(::Options, state, addr::Address, ::typeof(rand), dist::D) where {D <: Distributions.Distribution} =
@@ -110,3 +110,25 @@ const randprims = Set([
     Gen.traceat(state, ArrayedDistribution(Gen.exponential, dims), (1,), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(randexp), T::Type{Float64}, d::Integer, dims::Integer...) =
     Gen.traceat(state, ArrayedDistribution(Gen.exponential, d, dims...), (1,), addr)
+
+## sample ##
+
+# Strip away RNGs supplied to randexp
+@inline trace(options::Options, state, addr::Address, ::typeof(sample), rng::AbstractRNG, args...) =
+    trace(options, state, addr::Address, sample, args...)
+
+# Unweighted sample
+@inline trace(::Options, state, addr::Address, ::typeof(sample), a::AbstractArray{T}) where {T} =
+    Gen.traceat(state, LabeledUniform{T}(), (a,), addr)
+@inline trace(::Options, state, addr::Address, ::typeof(sample), a::AbstractArray{T}, n::Integer) where {T} =
+    Gen.traceat(state, ArrayedDistribution(LabeledUniform{T}(), n), (a,), addr)
+@inline trace(::Options, state, addr::Address, ::typeof(sample), a::AbstractArray{T}, dims::Dims) where {T} =
+    Gen.traceat(state, ArrayedDistribution(LabeledUniform{T}(), dims), (a,), addr)
+
+# Weighted sample
+@inline trace(::Options, state, addr::Address, ::typeof(sample), a::AbstractArray{T}, w::AbstractWeights) where {T} =
+    Gen.traceat(state, LabeledCategorical{T}(), (a, w), addr)
+@inline trace(::Options, state, addr::Address, ::typeof(sample), a::AbstractArray{T}, w::AbstractWeights, n::Integer) where {T} =
+    Gen.traceat(state, ArrayedDistribution(LabeledCategorical{T}(), n), (a, w), addr)
+@inline trace(::Options, state, addr::Address, ::typeof(sample), a::AbstractArray{T}, w::AbstractWeights, dims::Dims) where {T} =
+    Gen.traceat(state, ArrayedDistribution(LabeledCategorical{T}(), dims), (a, w), addr)

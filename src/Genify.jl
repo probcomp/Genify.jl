@@ -2,7 +2,7 @@ module Genify
 
 export genify
 
-using Gen, Distributions, Random
+using Gen, Distributions, StatsBase, Random
 using MacroTools, IRTools
 
 const Address = Union{Symbol, Pair{Symbol}}
