@@ -124,7 +124,6 @@ end
 
 ir = @code_ir foo1(5, 10)
 loops = loop_detection(ir; debug = true)
-display(loops)
 
 function foo2(N::Int)
     for i in 1 : N
@@ -137,6 +136,23 @@ function foo2(N::Int)
 end
 
 ir = @code_ir foo2(5)
-loop_detection(ir)
+loops = loop_detection(ir; debug = true)
+display(loops)
+
+function foo3(N::Int)
+    for i in 1 : N
+        for j in 1 : i
+            for k in i : j
+                for l in 1 : 10
+                    println("LOOOOOOOPY")
+                end
+            end
+        end
+    end
+end
+
+ir = @code_ir foo3(5)
+loops = loop_detection(ir; debug = true)
+display(loops)
 
 end

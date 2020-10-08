@@ -5,10 +5,13 @@ export genify
 using Gen, Distributions, Random
 using MacroTools
 using IRTools
-using IRTools: domtree, blocks, branches
+
+# Loop detection.
+using IRTools: domtree, blocks, branches, Block, IR
 
 const Address = Union{Symbol, Pair{Symbol}}
 
+include("utils.jl")
 include("transform.jl")
 include("distributions.jl")
 include("primitives.jl")

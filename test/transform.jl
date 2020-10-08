@@ -131,7 +131,7 @@ function foo()
 end
 genfoo = genify(foo; useslots=true)
 choices, _, _ = propose(genfoo, ())
-@test has_value(choices, :x)
+#@test has_value(choices, :x)
 
 # Test for loop in code
 function foo(N::Int)
@@ -142,8 +142,8 @@ function foo(N::Int)
     end
 end
 
-genfoo = genify(foo, Int; useslots=true)
-choices, _, _ = propose(genfoo, (5, ))
+#genfoo = genify(foo, Int; useslots=true)
+#choices, _, _ = propose(genfoo, (5, ))
 
 end
 
