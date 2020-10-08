@@ -68,7 +68,8 @@ function genify(fn, arg_types::Type...; options=nothing, recurse::Bool=true,
     # Get type information
     meta = IRTools.meta(Tuple{typeof(fn), arg_types...})
     if isnothing(meta) error("No IR available for this method signature.") end
-    arg_types = collect(meta.method.sig.parameters)[2:end]
+    arg_types = meta.method.sig isa UnionAll ? collect(arg_types) :
+        collect(meta.method.sig.parameters)[2:end]
     # Construct traced function
     options = isnothing(options) ? Options(recurse, useslots, scheme) : options
     traced_fn = TracedFunction(fn, Tuple{arg_types...}, options)
@@ -125,9 +126,7 @@ function trace end
 @generated function trace(options::Options, state, addr::Address, fn, args...)
     recurse, _, _ = unpack(options())
     if !recurse return :(fn(args...)) end
-    meta = IRTools.meta(Tuple{fn, args...})
-    if isnothing(meta) return :(fn(args...)) end
-    arg_types = collect(meta.method.sig.parameters)[2:end]
+    arg_types = args
     gen_fn = :($(GlobalRef(Genify, :genified))(options, fn, $(arg_types...)))
     return :($(GlobalRef(Gen, :traceat))(state, $gen_fn, args, addr))
 end

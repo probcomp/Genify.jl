@@ -1,3 +1,5 @@
+@testset "Random primitives" begin
+
 @testset "rand(::Type{<:Integer}) statements" begin
 
 function foo(n::Int)
@@ -163,5 +165,73 @@ trace, weight = generate(genfoo, (), choicemap(:c => [1 0; 0 1]))
 @test weight ≈ Distributions.logpdf(Wishart(trace[:b]+2, [1 0; 0 1]), [1 0; 0 1])
 trace, weight = generate(genfoo, (10, 10), choicemap(:d => zeros(10, 10)))
 @test weight ≈ Gen.logpdf(normal, 0, 0, 1) * 100
+
+end
+
+@testset "randn() and randexp() statements" begin
+
+function foo(dims...)
+    a = randn()
+    b = randexp()
+    c = randn(Float64, dims)
+    d = randexp(dims...)
+end
+
+genfoo = genify(foo)
+
+# Check types
+trace = simulate(genfoo, (10,))
+@test trace[:a] isa Float64
+@test trace[:b] isa Float64
+@test trace[:c] isa Vector{Float64}
+@test trace[:d] isa Vector{Float64}
+
+# Test array sizes
+@test size(trace[:a]) == ()
+@test size(trace[:b]) == ()
+@test size(trace[:c]) == (10,)
+@test size(trace[:d]) == (10,)
+
+# Test ranges
+@test all(trace[:b] .>= 0)
+@test all(trace[:d] .>= 0)
+
+# Test generate with constraints
+trace, weight = generate(genfoo, (), choicemap(:a => 1, :b => 1))
+@test weight ≈ Gen.logpdf(normal, 0, 1, 1) + Gen.logpdf(exponential, 1, 1)
+trace, weight = generate(genfoo, (10,), choicemap(:c => ones(10), :d => ones(10)))
+@test weight ≈ 10 * (Gen.logpdf(normal, 0, 1, 1) + Gen.logpdf(exponential, 1, 1))
+
+end
+
+@testset "sample() statements" begin
+
+function foo()
+    a = sample([:h, :e, :l, :l, :o], weights([1, 1, 5, 1, 1]))
+    b = sample(collect("world"), (10, 10))
+end
+
+genfoo = genify(foo)
+
+# Check types
+trace = simulate(genfoo, ())
+@test trace[:a] isa Symbol
+@test trace[:b] isa Matrix{Char}
+
+# Test array sizes
+trace = simulate(genfoo, ())
+@test size(trace[:b]) == (10, 10)
+
+# Test ranges
+@test trace[:a] in [:h, :e, :l, :l, :o]
+@test all(x in "world" for x in trace[:b])
+
+# Test generate with constraints
+trace, weight = generate(genfoo, (), choicemap(:a => :l))
+@test weight ≈ log(6/9)
+trace, weight = generate(genfoo, (), choicemap(:b => fill('w', (10, 10))))
+@test weight ≈ log(1/5) * 100
+
+end
 
 end

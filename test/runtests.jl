@@ -1,6 +1,6 @@
 using Test, Genify
-using Random, Distributions, Gen
 using IRTools
+using Random, StatsBase, Distributions, Gen
 
 include("loop_detection.jl")
 include("transform.jl")

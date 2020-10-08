@@ -107,28 +107,67 @@ Gen.has_output_grad(::TypedArrayDistribution) =
 Gen.has_argument_grads(::TypedArrayDistribution) =
     ()
 
-"Labeled uniform distribution over some indexable collection."
-@dist labeled_uniform(labels) = labels[uniform_discrete(1, length(labels))]
+"Labeled uniform distribution over indexable collections."
+struct LabeledUniform{T} <: Gen.Distribution{T} end
+LabeledUniform() = LabeledUniform{Any}()
+
+(d::LabeledUniform)(args...) = Gen.random(d, args...)
+
+@inline Gen.random(::LabeledUniform{T}, labels::AbstractArray{T}) where {T} =
+    sample(labels)
+@inline Gen.random(::LabeledUniform{T}, labels::Tuple{Vararg{T}}) where {T} =
+    rand(labels)
+@inline Gen.random(::LabeledUniform{T}, labels::AbstractString) where {T <: AbstractChar} =
+    rand(labels)
+@inline Gen.logpdf(::LabeledUniform{T}, x::T, labels::Indexable) where {T} =
+    log(sum(x == l for l in labels) / length(labels))
+
+Gen.logpdf_grad(::LabeledUniform, x, labels) =
+    (nothing, nothing)
+Gen.has_output_grad(::LabeledUniform) =
+    false
+Gen.has_argument_grads(::LabeledUniform) =
+    (nothing,)
 
 "Labeled uniform distribution over set-like collections."
-struct SetUniformDistribution{T} <: Gen.Distribution{T} end
-SetUniformDistribution() = SetUniformDistribution{Any}()
+struct SetUniform{T} <: Gen.Distribution{T} end
+SetUniform() = SetUniform{Any}()
 
-(d::SetUniformDistribution)(args...) = Gen.random(d, args...)
+(d::SetUniform)(args...) = Gen.random(d, args...)
 
-@inline Gen.random(::SetUniformDistribution{T}, support::AbstractSet{T}) where {T} =
+@inline Gen.random(::SetUniform{T}, support::AbstractSet{T}) where {T} =
     rand(support)
-@inline Gen.random(::SetUniformDistribution{Pair{T,U}}, support::AbstractDict{T,U}) where {T,U} =
+@inline Gen.random(::SetUniform{Pair{T,U}}, support::AbstractDict{T,U}) where {T,U} =
     rand(support)
 
-@inline Gen.logpdf(d::SetUniformDistribution{T}, x::T, support::AbstractSet{T}) where {T} =
+@inline Gen.logpdf(::SetUniform{T}, x::T, support::AbstractSet{T}) where {T} =
     x in support ? -log(length(support)) : -Inf
-@inline Gen.logpdf(d::SetUniformDistribution{Pair{T,U}}, x::Pair{T,U}, support::AbstractDict{T,U}) where {T,U} =
+@inline Gen.logpdf(::SetUniform{Pair{T,U}}, x::Pair{T,U}, support::AbstractDict{T,U}) where {T,U} =
     x in support ? -log(length(support)) : -Inf
 
-Gen.logpdf_grad(::SetUniformDistribution, x, support) =
+Gen.logpdf_grad(::SetUniform, x, support) =
     (nothing, nothing)
-Gen.has_output_grad(::SetUniformDistribution) =
+Gen.has_output_grad(::SetUniform) =
     false
-Gen.has_argument_grads(::SetUniformDistribution) =
+Gen.has_argument_grads(::SetUniform) =
+    (nothing,)
+
+"Categorical distribution over an array of labels."
+struct LabeledCategorical{T} <: Gen.Distribution{T} end
+LabeledCategorical() = LabeledCategorical{Any}()
+
+(d::LabeledCategorical)(args...) = Gen.random(d, args...)
+
+@inline Gen.random(::LabeledCategorical{T}, labels::AbstractArray{T}, weights::AbstractWeights) where {T} =
+    sample(labels, weights)
+@inline Gen.logpdf(::LabeledCategorical{T}, x::T, labels::AbstractArray{T}, weights::AbstractWeights) where {T} =
+    log(sum((x .== vec(labels)) .* Vector(weights)) / sum(weights))
+@inline Gen.logpdf(::LabeledCategorical{T}, x::T, labels::AbstractArray{T}, weights::UnitWeights) where {T} =
+    log(sum(x .== labels) / length(labels))
+
+Gen.logpdf_grad(::LabeledCategorical, x, labels) =
+    (nothing, nothing)
+Gen.has_output_grad(::LabeledCategorical) =
+    false
+Gen.has_argument_grads(::LabeledCategorical) =
     (nothing,)
