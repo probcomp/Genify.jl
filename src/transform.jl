@@ -1,4 +1,4 @@
-using IRTools: IR, arguments, argument!, deletearg!, recurse!, xcall, @dynamo
+using IRTools: IR, arguments, argument!, deletearg!, recurse!, xcall, @dynamo, blocks, insert!, var, renumber, insertafter!
 
 """
     Options{recurse::Bool, useslots::Bool, scheme::Symbol}
@@ -180,11 +180,11 @@ function is_traced(ir, fn::GlobalRef, recurse::Bool)
     return true
 end
 is_traced(ir, fn::Function, recurse::Bool) =
-    fn in randprims || recurse
+fn in randprims || recurse
 is_traced(ir, fn::IRTools.Variable, recurse::Bool) =
-    !haskey(ir, fn) || is_traced(ir, ir[fn], recurse)
+!haskey(ir, fn) || is_traced(ir, ir[fn], recurse)
 is_traced(ir, fn, recurse::Bool) =
-    true
+true
 
 "Rewrites the statement by wrapping call within `trace`."
 function rewrite!(ir, var, calltype, options, state, addr, fn, args)
