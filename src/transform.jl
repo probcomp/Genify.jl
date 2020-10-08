@@ -37,8 +37,18 @@ TracedFunction(fn, sig::Type{<:Tuple}, options::Options) =
 (tf::TracedFunction{S})(state, args...) where {S} =
     splice(tf.options, state, tf.fn, args::S...)
 
-"Returns the argument signature of a traced function."
+"Returns the argument signature of the matching method."
 signature(::TracedFunction{S}) where {S} = S
+function signature(fn_type::Type, arg_types::Type...)
+    meta = IRTools.meta(Tuple{fn_type, arg_types...})
+    if isnothing(meta) return nothing end
+    sig_types = collect(Base.unwrap_unionall(meta.method.sig).parameters[2:end])
+    for (i, a) in enumerate(arg_types)
+        if !(sig_types[i] isa TypeVar) continue end
+        sig_types[i] = a
+    end
+    return sig_types
+end
 
 "Unwrap `GlobalRef`s, returning the unqualified name."
 unwrap(ref::GlobalRef) = ref.name
@@ -66,10 +76,9 @@ function genify(fn, arg_types::Type...; options=nothing, recurse::Bool=true,
     fn_name = nameof(fn)
     n_args = length(arg_types)
     # Get type information
-    meta = IRTools.meta(Tuple{typeof(fn), arg_types...})
-    if isnothing(meta) error("No IR available for this method signature.") end
-    arg_types = meta.method.sig isa UnionAll ? collect(arg_types) :
-        collect(meta.method.sig.parameters)[2:end]
+    fn_type = fn isa Type ? Type{fn} : typeof(fn)
+    arg_types = signature(fn_type, arg_types...)
+    if isnothing(arg_types) error("No method definition available for $fn.") end
     # Construct traced function
     options = isnothing(options) ? Options(recurse, useslots, scheme) : options
     traced_fn = TracedFunction(fn, Tuple{arg_types...}, options)
@@ -113,7 +122,6 @@ function splice end
 end
 
 """
-    trace(state, addr, fn, args...)
     trace(options, state, addr, fn, args...)
 
 Trace random primitives or arbitrary methods. Random primitives are traced
@@ -126,7 +134,8 @@ function trace end
 @generated function trace(options::Options, state, addr::Address, fn, args...)
     recurse, _, _ = unpack(options())
     if !recurse return :(fn(args...)) end
-    arg_types = args
+    arg_types = signature(fn, args...)
+    if isnothing(arg_types) return :(fn(args...)) end
     gen_fn = :($(GlobalRef(Genify, :genified))(options, fn, $(arg_types...)))
     return :($(GlobalRef(Gen, :traceat))(state, $gen_fn, args, addr))
 end
@@ -180,11 +189,11 @@ function is_traced(ir, fn::GlobalRef, recurse::Bool)
     return true
 end
 is_traced(ir, fn::Function, recurse::Bool) =
-fn in randprims || recurse
+    fn in randprims || recurse
 is_traced(ir, fn::IRTools.Variable, recurse::Bool) =
-!haskey(ir, fn) || is_traced(ir, ir[fn], recurse)
+    !haskey(ir, fn) || is_traced(ir, ir[fn], recurse)
 is_traced(ir, fn, recurse::Bool) =
-true
+    true
 
 "Rewrites the statement by wrapping call within `trace`."
 function rewrite!(ir, var, calltype, options, state, addr, fn, args)
