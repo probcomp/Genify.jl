@@ -100,3 +100,30 @@ function preheaders!(ir::IR, loops::AbstractVector{NaturalLoop})
     end
     return preheaders
 end
+
+"Add loop counters to each natural loop in a piece of IR."
+function loopcounts!(ir::IR)
+    # Prune unreachable blocks, detect loops, and add preheaders
+    preheaders!(ir, detectloops!(ir))
+    # Iterate over loops in topological order
+    prev_header = -1
+    loops, countvars = NaturalLoop[], IRTools.Variable[]
+    for loop in detectloops(ir)
+        # Skip nested loops with the same header
+        if loop.header == prev_header continue end
+        # Create loop count variables, and pass them along blocks
+        preheader, header = block(ir, loop.header-1), block(ir, loop.header)
+        push!(arguments(branches(preheader)[1]), 0) # Initialize loop count
+        count = argument!(header, insert=false) # Pass to header
+        count = pushfirst!(header, xcall(Base, :+, count, 1)) # Increment count
+        for b in (block(ir, i) for i in loop.backedges)
+            for (bi, br) in enumerate(branches(b)) # Pass count along backedges
+                if br.block != loop.header continue end
+                push!(arguments(branches(b)[bi]), count)
+            end
+        end
+        push!(loops, loop); push!(countvars, count)
+        prev_header = loop.header
+    end
+    return loops, countvars
+end

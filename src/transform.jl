@@ -1,4 +1,4 @@
-using MacroTools: isexpr
+using MacroTools: isexpr, iscall
 
 """
     Options{recurse::Bool, useslots::Bool, scheme::Symbol}
@@ -161,7 +161,8 @@ function transform!(ir::IR, options::Options=MinimalOptions())
         # Rewrite statement by wrapping call within `trace`
         rewrite!(ir, x, calltype, QuoteNode(options), state, addr, fn, args)
     end
-    if (useslots) ir = autoname!(ir, rand_addrs) end
+    if (useslots) slotaddrs!(ir, rand_addrs) end # Name addresses using slots
+    ir = loopaddrs!(ir, rand_addrs) # Add loop indices to addresses
     return ir
 end
 
@@ -191,9 +192,9 @@ end
 is_traced(ir, fn::Function, recurse::Bool) = # Handle injected functions
     fn in randprims || recurse
 is_traced(ir, fn::IRTools.Variable, recurse::Bool) = # Handle IR variables
-    !haskey(ir, fn) || is_traced(ir, ir[fn], recurse)
+    !haskey(ir, fn) || is_traced(ir, ir[fn].expr, recurse)
 is_traced(ir, fn::Expr, recurse::Bool) = # Handle keyword functions
-    isexpr(fn, :call) && fn.args[1] == GlobalRef(Core, :kwfunc) ?
+    iscall(fn, GlobalRef(Core, :kwfunc)) ?
         is_traced(ir, fn.args[2], recurse) : true
 is_traced(ir, fn, recurse::Bool) = # Return true by default, to be safe
     true
@@ -201,24 +202,22 @@ is_traced(ir, fn, recurse::Bool) = # Return true by default, to be safe
 "Rewrites the statement by wrapping call within `trace`."
 function rewrite!(ir, var, calltype, options, state, addr, fn, args)
     if calltype == :call # Handle basic calls
-        ir[var] = xcall(GlobalRef(Genify, :trace),
-                        options, state, addr, fn, args...)
+        ir[var] = xcall(Genify, :trace, options, state, addr, fn, args...)
     elseif calltype == :apply # Handle `Core._apply`
-        preargs = xcall(GlobalRef(Core, :tuple), options, state, addr, fn)
+        preargs = xcall(Core, :tuple, options, state, addr, fn)
         preargs = insert!(ir, var, preargs)
-        ir[var] = xcall(GlobalRef(Core, :_apply),
+        ir[var] = xcall(Core, :_apply,
                         GlobalRef(Genify, :trace), preargs, args...)
     elseif calltype == :apply_iterate # Handle `Core._apply_iterate`
-        preargs = xcall(GlobalRef(Core, :tuple), options, state, addr, fn)
+        preargs = xcall(Core, :tuple, options, state, addr, fn)
         preargs = insert!(ir, var, preargs)
-        ir[var] = xcall(GlobalRef(Core, :_apply_iterate),
-                        GlobalRef(Base, :iterate),
+        ir[var] = xcall(Core, :_apply_iterate, GlobalRef(Base, :iterate),
                         GlobalRef(Genify, :trace), preargs, args...)
     end
 end
 
-"Automatically generate user-friendly address names."
-function autoname!(ir::IR, rand_addrs::Dict)
+"Generate trace addresses from slotnames where possible."
+function slotaddrs!(ir::IR, rand_addrs::Dict)
     slotnames = ir.meta.code.slotnames
     slotcount = Dict{Int,Int}()
     for (x, stmt) in ir
@@ -229,10 +228,31 @@ function autoname!(ir::IR, rand_addrs::Dict)
             slot_id = parse(Int, string(slot.id)[2:end])
             addr = slotnames[slot_id] # Look up name in CodeInfo
             if get!(slotcount, slot_id, 0) > 0 # Ensure uniqueness
-                addr =Symbol(addr, :_, slotcount[slot_id])
+                addr = Symbol(addr, :_, slotcount[slot_id])
             end
             slotcount[slot_id] += 1
-            ir[rand_addrs[v]] = QuoteNode(addr) # Replace gensym-ed address
+            ir[rand_addrs[v]] = QuoteNode(addr) # Replace previous address
+        end
+    end
+    return ir
+end
+
+"Add loop indices to addresses."
+function loopaddrs!(ir::IR, rand_addrs::Dict)
+    # Add count variables for each loop in IR
+    loops, countvars = loopcounts!(ir)
+    # Append loop count to addresses in each loop body
+    for (loop, count) in zip(loops, countvars)
+        for addrvar in values(rand_addrs)
+            if !(block(ir, addrvar).id in loop.body) continue end
+            if iscall(ir[addrvar].expr, GlobalRef(Base, :Pair))
+                head, tail = ir[addrvar].expr.args[2:3]
+                tail = insert!(ir, addrvar, xcall(Base, :Pair, tail, count))
+                ir[addrvar] = xcall(Base, :Pair, head, tail)
+            else
+                head = insert!(ir, addrvar, ir[addrvar])
+                ir[addrvar] = xcall(Base, :Pair, head, count)
+            end
         end
     end
     return ir

@@ -125,72 +125,83 @@ choices, _, _ = propose(genfoo, (true,))
 choices, _, _ = propose(genfoo, (false,))
 @test !has_value(choices, :y) && has_value(choices, :y_1)
 
-# Test broadcast in code
-function foo()
-    x = [1.0, 3.0, 5.0] .+ rand(Normal(0.0, 1.0))
-end
-genfoo = genify(foo; useslots=true)
-choices, _, _ = propose(genfoo, ())
-#@test has_value(choices, :x)
-
-# Test for loop in code
-function foo(N::Int)
-    for i in 1 : N
-        for j in 1 : N
+# Test for loops
+function foo(n::Int)
+    for i in 1:n
+        for j in 1:i
             x = rand(Normal(0.0, 1.0))
         end
     end
 end
 
-#genfoo = genify(foo, Int; useslots=true)
-#choices, _, _ = propose(genfoo, (5, ))
+genfoo = genify(foo, Int; useslots=true)
+choices, _, _ = propose(genfoo, (5, ))
+@test all(choices[:x => i => j] isa Float64 for i in 1:5 for j in 1:i)
+choices, _, _ = propose(genfoo, (10, ))
+@test all(choices[:x => i => j] isa Float64 for i in 1:10 for j in 1:i)
+
+# Test while loops
+function collatz(n::Int)
+    seq = Int[]
+    while n != 1
+        n = mod(n, 2) == 0 ? n ÷ 2 : 3*n + 1
+        x = rand(1:n)
+        push!(seq, n)
+    end
+    return seq
+end
+
+gencollatz = genify(collatz, Int; useslots=true)
+choices, _, seq = propose(gencollatz, (13, ))
+@test all(choices[:x => i] isa Int for i in 1:length(seq))
+@test all(choices[:x => i] <= n for (i,n) in enumerate(seq))
 
 end
 
 @testset "Nested generative functions" begin
 
-    function model(mu::Real)
-        theta = rand(LogNormal(mu, 1))
-        obs = observe(theta)
-    end
+function model(mu::Real)
+    theta = rand(LogNormal(mu, 1))
+    obs = observe(theta)
+end
 
-    function observe(theta::Real)
-        m1 = rand(Normal(theta, 1))
-        m2 = rand(Normal(theta, 2))
-        m3 = rand(Normal(theta, 3))
-        return (m1, m2, m3)
-    end
+function observe(theta::Real)
+    m1 = rand(Normal(theta, 1))
+    m2 = rand(Normal(theta, 2))
+    m3 = rand(Normal(theta, 3))
+    return (m1, m2, m3)
+end
 
-    genmodel = genify(model, Real)
+genmodel = genify(model, Real)
 
-    # Test simulate
-    trace = simulate(genmodel, (1,))
-    @test trace[:theta] >= 0
-    @test trace[:obs] isa Tuple{Float64, Float64, Float64}
-    @test trace[:obs => :m1] isa Float64
-    @test trace[:obs => :m2] isa Float64
-    @test trace[:obs => :m3] isa Float64
+# Test simulate
+trace = simulate(genmodel, (1,))
+@test trace[:theta] >= 0
+@test trace[:obs] isa Tuple{Float64, Float64, Float64}
+@test trace[:obs => :m1] isa Float64
+@test trace[:obs => :m2] isa Float64
+@test trace[:obs => :m3] isa Float64
 
-    # Test generate
-    observations = choicemap((:obs => :m1, 3), (:obs => :m2, 3), (:obs => :m3, 3))
-    trace, weight = generate(genmodel, (1,), observations)
-    @test trace[:obs => :m1] == 3
-    @test trace[:obs => :m2] == 3
-    @test trace[:obs => :m3] == 3
-    @test weight ≈ sum(Gen.logpdf(normal, 3, trace[:theta], i) for i in 1:3)
+# Test generate
+observations = choicemap((:obs => :m1, 3), (:obs => :m2, 3), (:obs => :m3, 3))
+trace, weight = generate(genmodel, (1,), observations)
+@test trace[:obs => :m1] == 3
+@test trace[:obs => :m2] == 3
+@test trace[:obs => :m3] == 3
+@test weight ≈ sum(Gen.logpdf(normal, 3, trace[:theta], i) for i in 1:3)
 
-    # Test regenerate
-    prev_trace = trace
-    trace, weight, _ = regenerate(trace, (1,), (NoChange(),), select(:theta))
-    @test trace[:obs] == prev_trace[:obs]
+# Test regenerate
+prev_trace = trace
+trace, weight, _ = regenerate(trace, (1,), (NoChange(),), select(:theta))
+@test trace[:obs] == prev_trace[:obs]
 
-    prev_trace = trace
-    trace, weight, _ = regenerate(trace, (1,), (NoChange(),), select(:obs))
-    @test trace[:theta] == prev_trace[:theta]
+prev_trace = trace
+trace, weight, _ = regenerate(trace, (1,), (NoChange(),), select(:obs))
+@test trace[:theta] == prev_trace[:theta]
 
-    # Test non-recursion
-    genmodel = genify(model, Real; recurse=false)
-    choices, _, _ = propose(genmodel, (1,))
-    @test :obs ∉ keys(nested_view(choices))
+# Test non-recursion
+genmodel = genify(model, Real; recurse=false)
+choices, _, _ = propose(genmodel, (1,))
+@test :obs ∉ keys(nested_view(choices))
 
 end
