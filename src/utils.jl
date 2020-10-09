@@ -65,7 +65,7 @@ function detectloops(ir::IR)
 end
 
 "Detect the set of natural loops for a piece of IR, pruning unreachable blocks."
-detectloops!(ir::IR) = detectloops(pruneblocks!(ir))
+detectloops!(ir::IR) = detectloops(pruneblocks!(IRTools.explicitbranch!(ir)))
 
 "Insert preheader for a block in a piece of IR."
 function preheader!(ir::IR, i::Int, backedges::AbstractVector{Int}=Int[])
