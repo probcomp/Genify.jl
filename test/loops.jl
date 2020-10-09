@@ -38,13 +38,22 @@ end
 ir = @code_ir foo1(30, 10)
 l1, l2 = Genify.detectloops!(ir)
 @test l2.body ⊆ l1.body
+preheaders = Genify.preheaders!(ir, [l1, l2])
+newloops = Genify.detectloops(ir)
+@test all(IRTools.block(ir, l.header-1) in preheaders for l in newloops)
 
 ir = @code_ir foo2(10)
 loops = Genify.detectloops!(ir)
 @test length(loops) == 1
+preheaders = Genify.preheaders!(ir, loops)
+newloops = Genify.detectloops(ir)
+@test all(IRTools.block(ir, l.header-1) in preheaders for l in newloops)
 
 ir = @code_ir foo3(10)
 l1, l2, l3, l4 = Genify.detectloops!(ir)
 @test l4.body ⊆ l3.body ⊆ l2.body ⊆ l1.body
+preheaders = Genify.preheaders!(ir, [l1, l2, l3, l4])
+newloops = Genify.detectloops(ir)
+@test all(IRTools.block(ir, l.header-1) in preheaders for l in newloops)
 
 end

@@ -4,8 +4,9 @@ export genify
 
 using Gen, Distributions, StatsBase, Random, IRTools
 using IRTools:
-    IR, arguments, argument!, deletearg!, recurse!, xcall, @dynamo,
-    dominators, block ,blocks, successors, predecessors, deleteblock!    
+    IR, Branch, arguments, argument!, deletearg!, recurse!, xcall, @dynamo,
+    block, blocks, block!, deleteblock!, branch!, branches,
+    successors, predecessors, dominators
 
 const Address = Union{Symbol, Pair{Symbol}}
 const Setlike = Union{AbstractSet, AbstractDict}
