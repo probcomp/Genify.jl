@@ -1,4 +1,4 @@
-using IRTools: IR, arguments, argument!, deletearg!, recurse!, xcall, @dynamo, blocks, insert!, var, renumber, insertafter!
+using MacroTools: isexpr
 
 """
     Options{recurse::Bool, useslots::Bool, scheme::Symbol}

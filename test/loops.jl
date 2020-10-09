@@ -34,16 +34,17 @@ end
 # ------------ Testing ------------ #
 
 @testset "Loop detection" begin
-    ir = @code_ir foo1(5, 10)
-    l1, l2 = Genify.loop_detection(ir)
-    @test 4 == Genify.header(l1)
-    @test 4 in Genify.body(l1)
-    @test 4 == Genify.backedge(l1)
 
-    ir = @code_ir foo2(10)
-    l = Genify.loop_detection(ir)[1]
-    @test 2 == Genify.header(l)
-    @test 2 in Genify.body(l)
-    @test 5 in Genify.body(l)
-    @test 5 == Genify.backedge(l)
+ir = @code_ir foo1(30, 10)
+l1, l2 = Genify.detectloops!(ir)
+@test l2.body ⊆ l1.body
+
+ir = @code_ir foo2(10)
+loops = Genify.detectloops!(ir)
+@test length(loops) == 1
+
+ir = @code_ir foo3(10)
+l1, l2, l3, l4 = Genify.detectloops!(ir)
+@test l4.body ⊆ l3.body ⊆ l2.body ⊆ l1.body
+
 end

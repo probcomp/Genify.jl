@@ -1,7 +1,6 @@
-using Test, Genify
-using IRTools
+using Test, Genify, IRTools
 using Random, StatsBase, Distributions, Gen
 
-include("loop_detection.jl")
+include("loops.jl")
 include("transform.jl")
 include("primitives.jl")
