@@ -188,11 +188,14 @@ function is_traced(ir, fn::GlobalRef, recurse::Bool)
     if val isa Type && val <: Sampleable return false end # Filter distributions
     return true
 end
-is_traced(ir, fn::Function, recurse::Bool) =
+is_traced(ir, fn::Function, recurse::Bool) = # Handle injected functions
     fn in randprims || recurse
-is_traced(ir, fn::IRTools.Variable, recurse::Bool) =
+is_traced(ir, fn::IRTools.Variable, recurse::Bool) = # Handle IR variables
     !haskey(ir, fn) || is_traced(ir, ir[fn], recurse)
-is_traced(ir, fn, recurse::Bool) =
+is_traced(ir, fn::Expr, recurse::Bool) = # Handle keyword functions
+    isexpr(fn, :call) && fn.args[1] == GlobalRef(Core, :kwfunc) ?
+        is_traced(ir, fn.args[2], recurse) : true
+is_traced(ir, fn, recurse::Bool) = # Return true by default, to be safe
     true
 
 "Rewrites the statement by wrapping call within `trace`."
