@@ -91,7 +91,7 @@ preheader!(ir::IR, loop::NaturalLoop) =
 
 "Insert preheaders for every loop in a piece of IR."
 function preheaders!(ir::IR, loops::AbstractVector{NaturalLoop})
-    preheaders, inserts = IRTools.Block[], Int[]
+    preheaders, inserts = Block[], Int[]
     for (n, loop) in enumerate(sort!(loops, by=l->l.header, rev=true))
         backedges = map(e -> e + sum(inserts .<= e), collect(loop.backedges))
         preheader!(ir, loop.header, backedges)
@@ -107,7 +107,7 @@ function loopcounts!(ir::IR)
     preheaders!(ir, detectloops!(ir))
     # Iterate over loops in topological order
     prev_header = -1
-    loops, countvars = NaturalLoop[], IRTools.Variable[]
+    loops, countvars = NaturalLoop[], Variable[]
     for loop in detectloops(ir)
         # Skip nested loops with the same header
         if loop.header == prev_header continue end

@@ -58,7 +58,7 @@ function foo(dims...)
     return y
 end
 
-ir_in = IR(typeof(foo))
+ir_in = IR(typeof(foo), Any)
 ir_out = transform!(copy(ir_in))
 @test check_ir(ir_in, ir_out)
 
@@ -121,9 +121,9 @@ end
 
 genfoo = genify(foo, Bool; useslots=true)
 choices, _, _ = propose(genfoo, (true,))
-@test has_value(choices, :y) && !has_value(choices, :y_1)
+@test has_value(choices, :y_1) && !has_value(choices, :y_2)
 choices, _, _ = propose(genfoo, (false,))
-@test !has_value(choices, :y) && has_value(choices, :y_1)
+@test !has_value(choices, :y_1) && has_value(choices, :y_2)
 
 # Test for loops
 function foo(n::Int)

@@ -2,6 +2,7 @@
 const randprims = Set([
     rand, randn, randexp, randperm, shuffle, sample
 ])
+const primnames = Set(Symbol(fn) for fn in randprims)
 
 ## rand ##
 
