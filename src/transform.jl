@@ -234,18 +234,27 @@ genaddr(ir, fn::GlobalRef, args) =
 genaddr(ir, fn::Function, args) =
     genaddr(ir, nameof(fn), args)
 genaddr(ir, fn::Variable, args) =
-    haskey(ir, fn) ? genaddr(ir, ir[fn].expr, args) : :argcall
+    genaddr(ir, haskey(ir, fn) ? ir[fn].expr : argname(ir, fn), args)
 genaddr(ir, fn, args) =
     :unknown
 
+"Generate partial address from argument."
 argaddr(ir, arg::Variable) =
-    haskey(ir, arg) ? argaddr(ir, ir[arg].expr) : nothing
+    haskey(ir, arg) ? argaddr(ir, ir[arg].expr) : argname(ir, arg)
 argaddr(ir, arg::Expr) =
     isexpr(arg, :call) ? argaddr(ir, arg.args[1]) : nothing
 argaddr(ir, arg::GlobalRef) =
     arg.name
 argaddr(ir, arg) =
     Symbol(arg)
+
+"Get argument slot name from IR."
+argname(ir::IR, v::Variable) =
+    argname(ir.meta, v)
+argname(meta::IRTools.Meta, v::Variable) =
+    1 <= v.id <= meta.nargs ? meta.code.slotnames[v.id] : nothing
+argname(meta::Any, v::Variable) =
+    nothing
 
 "Rewrites the statement by wrapping call within `trace`."
 function rewrite!(ir, var, calltype, options, state, addr, fn, args)

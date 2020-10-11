@@ -1,7 +1,3 @@
-using Genify: unwrap, transform!
-using MacroTools: isexpr
-using IRTools: IR
-
 @testset "IR transform" begin
 
 function check_ir(ir_in::IR, ir_out::IR)
@@ -155,6 +151,17 @@ gencollatz = genify(collatz, Int; useslots=true)
 choices, _, seq = propose(gencollatz, (13, ))
 @test all(choices[:x => i] isa Int for i in 1:length(seq))
 @test all(choices[:x => i] <= n for (i,n) in enumerate(seq))
+
+# Test address generation from arguments
+function foo(dist::UnivariateDistribution, callee)
+    return callee() + rand(dist)
+end
+
+function bar() return rand() end
+
+genfoo = genify(foo, UnivariateDistribution, Any; useslots=false)
+choices, _, _ = propose(genfoo, (Normal(0, 1), bar))
+@test (:callee, :rand_dist) ⊆ keys(nested_view(choices))
 
 end
 
