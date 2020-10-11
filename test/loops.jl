@@ -1,59 +1,100 @@
-# ------------ Test funcs ------------ #
+@testset "Loop utilities" begin
 
-function foo1(N::Int, K::Int)
-    for i in 1 : N
-        i < 20 && continue
-        for j in 1 : K
-            x = rand(Normal(i + j, 1.0))
+function looper1(N::Int, K::Int)
+    x = 0
+    for i in 1:N
+        if (i < 20) continue end
+        for j in 1:K
+            x += 1
         end
     end
+    return x
 end
 
-function foo2(N::Int)
+function looper2(N::Int)
+    x = 0
     for i in 1 : N
-        if i > 10
-            x = rand(Normal(0.0, 1.0))
+        if (i > 10)
+            x += 1
         else
-            x = rand(Normal(0.0, 1.0))
+            x += 2
         end
     end
+    return x
 end
 
-function foo3(N::Int)
+function looper3(N::Int)
+    x = 0
     for i in 1 : N
         for j in 1 : i
             for k in i : j
                 for l in 1 : 10
-                    println("LOOOOOOOPY")
+                    x += 1
                 end
             end
         end
     end
+    return x
 end
-
-# ------------ Testing ------------ #
 
 @testset "Loop detection" begin
 
-ir = @code_ir foo1(30, 10)
+ir = IR(typeof(looper1), Int, Int)
 l1, l2 = Genify.detectloops!(ir)
 @test l2.body ⊆ l1.body
-preheaders = Genify.preheaders!(ir, [l1, l2])
-newloops = Genify.detectloops(ir)
-@test all(IRTools.block(ir, l.header-1) in preheaders for l in newloops)
+@test looper1(10, 10) == IRTools.evalir(ir, nothing, 10, 10)
 
-ir = @code_ir foo2(10)
+ir = IR(typeof(looper2), Int)
 loops = Genify.detectloops!(ir)
 @test length(loops) == 1
-preheaders = Genify.preheaders!(ir, loops)
-newloops = Genify.detectloops(ir)
-@test all(IRTools.block(ir, l.header-1) in preheaders for l in newloops)
+@test looper2(20) == IRTools.evalir(ir, nothing, 20)
 
-ir = @code_ir foo3(10)
+ir = IR(typeof(looper3), Int)
 l1, l2, l3, l4 = Genify.detectloops!(ir)
 @test l4.body ⊆ l3.body ⊆ l2.body ⊆ l1.body
-preheaders = Genify.preheaders!(ir, [l1, l2, l3, l4])
-newloops = Genify.detectloops(ir)
-@test all(IRTools.block(ir, l.header-1) in preheaders for l in newloops)
+@test looper3(20) == IRTools.evalir(ir, nothing, 20)
+
+end
+
+@testset "Preheader insertion" begin
+
+ir = IR(typeof(looper1), Int, Int)
+preheaders = Genify.preheaders!(ir, Genify.detectloops!(ir))
+loops = Genify.detectloops(ir)
+@test all(IRTools.block(ir, l.header-1) in preheaders for l in loops)
+@test looper1(10, 10) == IRTools.evalir(ir, nothing, 10, 10)
+
+ir = IR(typeof(looper2), Int)
+preheaders = Genify.preheaders!(ir, Genify.detectloops!(ir))
+loops = Genify.detectloops(ir)
+@test all(IRTools.block(ir, l.header-1) in preheaders for l in loops)
+@test looper2(20) == IRTools.evalir(ir, nothing, 20)
+
+ir = IR(typeof(looper3), Int)
+preheaders = Genify.preheaders!(ir, Genify.detectloops!(ir))
+loops = Genify.detectloops(ir)
+@test all(IRTools.block(ir, l.header-1) in preheaders for l in loops)
+@test looper3(20) == IRTools.evalir(ir, nothing, 20)
+
+end
+
+@testset "Loop count insertion" begin
+
+ir = IR(typeof(looper1), Int, Int)
+loops, countvars = Genify.loopcounts!(ir)
+@test length(loops) == length(countvars) == 2
+@test looper1(10, 10) == IRTools.evalir(ir, nothing, 10, 10)
+
+ir = IR(typeof(looper2), Int)
+loops, countvars = Genify.loopcounts!(ir)
+@test length(loops) == length(countvars) == 1
+@test looper2(20) == IRTools.evalir(ir, nothing, 20)
+
+ir = IR(typeof(looper3), Int)
+loops, countvars = Genify.loopcounts!(ir)
+@test length(loops) == length(countvars) == 4
+@test looper3(20) == IRTools.evalir(ir, nothing, 20)
+
+end
 
 end
