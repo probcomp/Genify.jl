@@ -37,22 +37,7 @@ TracedFunction(fn, sig::Type{<:Tuple}, options::Options) =
 (tf::TracedFunction{S})(state, args...) where {S} =
     splice(tf.options, state, tf.fn, args::S...)
 
-"Returns the argument signature of the matching method."
 signature(::TracedFunction{S}) where {S} = S
-function signature(fn_type::Type, arg_types::Type...)
-    meta = IRTools.meta(Tuple{fn_type, arg_types...})
-    if isnothing(meta) return nothing end
-    sig_types = collect(Base.unwrap_unionall(meta.method.sig).parameters[2:end])
-    for (i, a) in enumerate(arg_types)
-        if !(sig_types[i] isa TypeVar) continue end
-        sig_types[i] = a
-    end
-    return sig_types
-end
-
-"Unwrap `GlobalRef`s, returning the unqualified name."
-unwrap(ref::GlobalRef) = ref.name
-unwrap(val) = val
 
 """
     genify(fn, arg_types...; kwargs...)

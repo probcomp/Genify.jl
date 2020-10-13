@@ -90,6 +90,18 @@ trace, weight, _, discard =
 @test discard[:coin] == false
 @test weight == log(0.25) - log(0.75)
 
+# Test handling of parametric methods
+function foo(x::Array{T,N}, start::T, tup::Tuple{Int,T}) where {T, N}
+    y = rand(T, size(x))
+    x[:] = y .+ start
+    return x .* tup[1] .- tup[2]
+end
+
+genfoo = genify(foo, Vector{Float64}, Float64, Tuple{Int,Float64})
+@test genfoo.arg_types == [Array, Float64, Tuple{Int, T} where T]
+@test Genify.signature(genfoo.julia_function) == Tuple{genfoo.arg_types...}
+@test all(0 .<= genfoo(zeros(5), 5., (2, 10.)) .<= 2)
+
 end
 
 @testset "Automatic random variable naming" begin
