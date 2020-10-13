@@ -103,7 +103,7 @@ function model_initiation(;
     end
     ## add infected individuals
     for city in 1:C
-        inds = ids_in_position(city, model)
+        inds = get_node_contents(city, model)
         for n in 1:Is[city]
             agent = model[inds[n]]
             agent.status = :I # Infected
@@ -124,47 +124,47 @@ nothing # hide
 
 using LinearAlgebra: diagind
 
-function create_params(;
-    C,
-    max_travel_rate,
-    infection_period = 30,
-    reinfection_probability = 0.05,
-    detection_time = 14,
-    death_rate = 0.02,
-    Is = [zeros(Int, C - 1)..., 1],
-    seed = 19,
-)
-
-    Random.seed!(seed)
-    Ns = rand(50:5000, C)
-    β_und = rand(0.3:0.02:0.6, C)
-    β_det = β_und ./ 10
-
-    Random.seed!(seed)
-    migration_rates = zeros(C, C)
-    for c in 1:C
-        for c2 in 1:C
-            migration_rates[c, c2] = (Ns[c] + Ns[c2]) / Ns[c]
-        end
-    end
-    maxM = maximum(migration_rates)
-    migration_rates = (migration_rates .* max_travel_rate) ./ maxM
-    migration_rates[diagind(migration_rates)] .= 1.0
-
-    params = @dict(
-        Ns,
-        β_und,
-        β_det,
-        migration_rates,
-        infection_period,
-        reinfection_probability,
-        detection_time,
-        death_rate,
-        Is
-    )
-
-    return params
-end
+# function create_params(;
+#     C,
+#     max_travel_rate,
+#     infection_period = 30,
+#     reinfection_probability = 0.05,
+#     detection_time = 14,
+#     death_rate = 0.02,
+#     Is = [zeros(Int, C - 1)..., 1],
+#     seed = 19,
+# )
+#
+#     Random.seed!(seed)
+#     Ns = rand(50:5000, C)
+#     β_und = rand(0.3:0.02:0.6, C)
+#     β_det = β_und ./ 10
+#
+#     Random.seed!(seed)
+#     migration_rates = zeros(C, C)
+#     for c in 1:C
+#         for c2 in 1:C
+#             migration_rates[c, c2] = (Ns[c] + Ns[c2]) / Ns[c]
+#         end
+#     end
+#     maxM = maximum(migration_rates)
+#     migration_rates = (migration_rates .* max_travel_rate) ./ maxM
+#     migration_rates[diagind(migration_rates)] .= 1.0
+#
+#     params = @dict(
+#         Ns,
+#         β_und,
+#         β_det,
+#         migration_rates,
+#         infection_period,
+#         reinfection_probability,
+#         detection_time,
+#         death_rate,
+#         Is
+#     )
+#
+#     return params
+# end
 
 function agent_step!(agent, model)
     migrate!(agent, model)
@@ -194,7 +194,7 @@ function transmit!(agent, model)
     n = rand(d)
     n == 0 && return
 
-    for contactID in ids_in_position(agent, model)
+    for contactID in get_node_contents(agent.pos, model)
         contact = model[contactID]
         if contact.status == :S ||
            (contact.status == :R && rand() ≤ model.reinfection_probability)
@@ -216,4 +216,47 @@ function recover_or_die!(agent, model)
             agent.days_infected = 0
         end
     end
+end
+
+# ## Bayesian wrapper
+using Gen, Genify, Distributions
+
+# Genify the Agents.step! method
+genstep! = genify(Agents.step!, ABM, Any; recurse=true)
+
+# Set up fixed model parameters
+function create_params(; β=0.3)
+    Ns = [200; 200; 200]
+    migration_rates = [0.9 0.05 0.05; 0.05 0.9 0.05; 0.05 0.05 0.9]
+    β_det = β * ones(3)
+    β_und = β_det ./ 10
+    death_rate = 0.0
+    return @dict(Ns, migration_rates, β_det, β_und, death_rate)
+end
+
+# Define observation model
+@gen function observe(model::ABM, noise::Float64=5.0)
+    agents = collect(values(model.agents))
+    for city in nodes(model)
+        alive = length(get_node_contents(city, model))
+        infected = count(a.status == :I && a.pos == city &&
+            a.days_infected >= model.detection_time for a in agents)
+        recovered = count(a.status == :R && a.pos == city for a in agents)
+        {:alive => city} ~ normal(alive, noise)
+        {:infected => city} ~ normal(infected, noise)
+        {:recovered => city} ~ normal(recovered, noise)
+    end
+    return model
+end
+
+# Wrap SIR step model in Gen model with parameter uncertainty
+@gen function bayesian_sir(T::Int)
+    β ~ uniform_continuous(0, 0.6)
+    params = create_params(β=β)
+    model = model_initiation(**params)
+    for t = 1:T
+        {:step => t} ~ genstep!(model, agent_step!)
+        {:obs => t} ~ observe(model)
+    end
+    return model
 end
