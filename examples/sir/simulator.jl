@@ -88,7 +88,6 @@ function model_initiation(;
         β_det,
         migration_rates,
         infection_period,
-        infection_period,
         reinfection_probability,
         detection_time,
         C,
@@ -118,7 +117,7 @@ function agent_step!(agent, model)
     migrate!(agent, model)
     transmit!(agent, model)
     update!(agent, model)
-    recover_or_die!(agent, model)
+    recover!(agent, model)
 end
 
 function migrate!(agent, model)
@@ -131,8 +130,9 @@ function migrate!(agent, model)
 end
 
 function transmit!(agent, model)
-    agent.status == :S && return
-    rate = if agent.days_infected < model.detection_time
+    rate = if agent.status != :I
+        0.0
+    elseif agent.days_infected < model.detection_time
         model.β_und[agent.pos]
     else
         model.β_det[agent.pos]
@@ -144,8 +144,7 @@ function transmit!(agent, model)
 
     for contactID in get_node_contents(agent.pos, model)
         contact = model[contactID]
-        if contact.status == :S ||
-           (contact.status == :R && rand() ≤ model.reinfection_probability)
+        if contact.status == :S
             contact.status = :I
             n -= 1
             n == 0 && return
@@ -155,13 +154,11 @@ end
 
 update!(agent, model) = agent.status == :I && (agent.days_infected += 1)
 
-function recover_or_die!(agent, model)
-    if agent.days_infected ≥ model.infection_period
-        if rand() ≤ model.death_rate
-            kill_agent!(agent, model)
-        else
-            agent.status = :R
-            agent.days_infected = 0
-        end
+function recover!(agent, model)
+    r = rand()
+#    r_prob = inv(1 + exp(-agent.days_infected/model.infection_period + 1))
+    if agent.days_infected >= model.infection_period
+        agent.status = :R
+        agent.days_infected = 0
     end
 end

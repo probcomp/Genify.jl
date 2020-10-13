@@ -8,12 +8,13 @@ trunc_normal(μ, σ, lb, ub) =
 
 # Set up fixed model parameters
 function create_params(; β=0.3)
-    Ns = [200; 200; 200]
-    migration_rates = [0.8 0.1 0.1; 0.1 0.8 0.1; 0.1 0.1 0.8]
+    Ns = [50; 50; 50]
+    migration_rates = [0.95 0.04 0.01; 0.025 0.95 0.025; 0.01 0.04 0.95]
     β_det = β * ones(3)
     β_und = β_det ./ 10
     death_rate = 0.0
-    return @dict(Ns, migration_rates, β_det, β_und, death_rate)
+    Is = [10; 0; 0]
+    return @dict(Ns, migration_rates, β_det, β_und, death_rate, Is)
 end
 
 # Define observation model
@@ -34,19 +35,26 @@ end
 abm_step! = genify(Agents.step!, AgentBasedModel, Any, Int, Bool; recurse=true)
 
 # Define Unfold step
-@gen function bayesian_sir_step(t::Int, _::Nothing, model::AgentBasedModel)
+@gen function bayesian_sir_step!(t::Int, _::Nothing,
+                                model::AgentBasedModel, noise::Float64)
     {:agents} ~ abm_step!(model, agent_step!, 1, true)
-    {:obs} ~ observe(model)
+    {:obs} ~ observe(model, noise)
     return nothing
 end
 
 # Wrap SIR step model in Gen model with parameter uncertainty
-@gen (static) function bayesian_sir(T::Int)
+@gen (static) function bayesian_sir(T::Int, noise::Float64)
     β ~ uniform_continuous(0, 2.0)
     params = create_params(β=β)
     model = model_initiation(; params...)
-    {:step} ~ Unfold(bayesian_sir_step)(T, nothing, model)
+    {:step} ~ Unfold(bayesian_sir_step!)(T, nothing, model, noise)
     return model
 end
 
 load_generated_functions()
+
+# Test run the model
+params = create_params()
+model = model_initiation(; params...)
+step!(model, agent_step!, 1, true)
+abm_step!(model, agent_step!, 1, true)
