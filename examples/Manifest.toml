@@ -259,6 +259,12 @@ repo-url = "https://github.com/probcomp/Gen.jl"
 uuid = "ea4f424c-a589-11e8-07c0-fd5c91b9da4a"
 version = "0.3.5"
 
+[[GenParticleFilters]]
+deps = ["Distributions", "Gen", "Statistics"]
+git-tree-sha1 = "cca6e2bc52f461814ae6b6993530b10e9efd37d6"
+uuid = "56b76ac4-72ef-411e-b419-6d312ed86a6f"
+version = "0.1.0"
+
 [[Genify]]
 deps = ["Distributions", "Gen", "IRTools", "MacroTools", "Random", "StatsBase"]
 path = ".."
