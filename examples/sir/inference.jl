@@ -74,9 +74,9 @@ end
 # Generate ground truth trace.
 trace, _ = generate(bayesian_sir, (50, 0.01), choicemap(:β => 0.5));
 
-run_resimulation_mh(trace)
-run_basic_smc(trace)
-run_drift_smc(trace)
+#run_resimulation_mh(trace)
+#run_basic_smc(trace)
+#run_drift_smc(trace)
 run_data_driven_smc(trace)
 
 end # module
