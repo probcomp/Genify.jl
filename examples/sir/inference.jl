@@ -6,11 +6,12 @@ using JLD2
 
 include("model.jl")
 include("utils.jl")
+include("inference/gaussian_drift.jl")
 include("inference/resimulation_mh.jl")
+include("inference/single_site_mh.jl")
 include("inference/basic_smc.jl")
 include("inference/drift_smc.jl")
 include("inference/data_driven_smc.jl")
-include("inference/single_site_mh.jl")
 
 run_resimulation_mh = (trace, T, N) -> begin
     observations = aggregate_obs(trace)
@@ -33,7 +34,7 @@ end
 
 run_basic_smc = (trace, T, N) -> begin
     observations = aggregate_obs(trace)
-    pf_state = smc_basic(T, observations, N);
+    pf_state = basic_smc(T, observations, N);
     lml_est = log_ml_estimate(pf_state)
     β_hat, β_var = mean(pf_state, :β), var(pf_state, :β)
     βs = [tr[:β] for tr in pf_state.traces]
@@ -46,7 +47,7 @@ run_basic_smc = (trace, T, N) -> begin
 
     observations = aggregate_obs(trace)
     m_observations = merge(observations, migration_obs(trace));
-    pf_state = smc_basic(T, m_observations, N);
+    pf_state = basic_smc(T, m_observations, N);
     lml_est = log_ml_estimate(pf_state)
     β_hat, β_var = mean(pf_state, :β), var(pf_state, :β)
     βs = [tr[:β] for tr in pf_state.traces]
@@ -60,7 +61,7 @@ end
 
 run_drift_smc = (trace, T, N) -> begin
     observations = aggregate_obs(trace)
-    pf_state = smc_drift(T, observations, N);
+    pf_state = drift_smc(T, observations, N);
     lml_est = log_ml_estimate(pf_state)
     β_hat, β_var = mean(pf_state, :β), var(pf_state, :β)
     βs = [tr[:β] for tr in pf_state.traces]
