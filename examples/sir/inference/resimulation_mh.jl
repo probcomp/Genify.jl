@@ -17,9 +17,11 @@ end
 function resimulation_mh(T::Int, observations::ChoiceMap, n_iters::Int,
                          tracked_vars=[:β], obs_noise=5.0)
     scores = Vector{Float64}(undef, n_iters)
+    trs = Vector{Trace}(undef, n_iters)
     data = DataFrame(fill(Float64, length(tracked_vars)), tracked_vars, n_iters)
     trace, _ = generate(bayesian_sir, (T, obs_noise), observations)
     scores[1] = get_score(trace)
+    trs[1] = trace
     for v in tracked_vars
         data[1, v] = trace[v]
     end
@@ -33,6 +35,7 @@ function resimulation_mh(T::Int, observations::ChoiceMap, n_iters::Int,
         for v in tracked_vars
             data[i, v] = trace[v]
         end
+        trs[i] = trace
     end
-    return trace, scores, data
+    return trs, scores, data
 end
