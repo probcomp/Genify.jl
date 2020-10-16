@@ -2,6 +2,7 @@ module Inference
 
 using Gen, Genify, GenParticleFilters, Distributions
 using ProgressMeter: @showprogress
+using JLD2
 
 include("model.jl")
 include("utils.jl")
@@ -23,6 +24,7 @@ end
 run_single_site_mh = (trace, T, N) -> begin
     observations = aggregate_obs(trace)
     trs, scores, data = single_site_mh(T, observations, N)
+    #@save "stored/single_site_mh.jld2" {compress=true} trs
     plot_obs(trace, [1]; color=[:red :blue])
     plot_obs!(trs, [1], lw=1, color=:grey)
     plot!(legend=:topleft, title="Single site MH, N=$(N)")
