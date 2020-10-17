@@ -1,6 +1,7 @@
 [deps]
 Agents = "46ada45e-f475-11e8-01d0-f70cc89e6671"
 AgentsPlots = "7820620d-95fb-4739-93b3-b0a14dd83f9a"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
