@@ -8,7 +8,7 @@ end
 
 function location_obs(trace::Trace; frac::Float64=0.5)
     model, T = get_retval(trace), get_args(trace)[1]
-    tracked = randperm(nagents(model))[1:Int(round(frac * nagents(model)))]
+    tracked = 1:Int(round(frac * nagents(model)))
     addrs = Gen.select([:step => t => :obs => :location => agt
                         for t in 1:T for agt in tracked]...)
     observations = Gen.get_selected(get_choices(trace), addrs)

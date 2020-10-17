@@ -19,6 +19,7 @@ function block_mh(T::Int, observations::ChoiceMap, n_iters::Int,
                                for t in ts for a in 1:nagents(model)]...)
                    for ts in t_blocks for fn in [:migrate!, :transmit!]]
     # Alternate between parameter proposal and resimulating blocks
+    println("Running block resimulation MH...")
     @showprogress for i in 2:n_iters
         trace, _ = mh(trace, Gen.select(:β))
         trace, _ = mh(trace, gaussian_drift, ())

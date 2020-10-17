@@ -13,7 +13,7 @@ function resimulation_mh(T::Int, observations::ChoiceMap, n_iters::Int,
     data[1, tracked_vars] = [trace[v] for v in tracked_vars]
     # Get all addreses for the simulator
     abm_addrs = Gen.select([:step => t => :agents for t in 1:T]...)
-    println("Running resimulation MH with drift proposals...")
+    println("Running resimulation MH...")
     @showprogress for i in 2:n_iters
         trace, _ = mh(trace, Gen.select(:β)) # Propose new parameters
         trace, _ = mh(trace, gaussian_drift, ()) # Propose new parameters

@@ -7,9 +7,9 @@ trunc_normal(μ, σ, lb, ub) =
     Genify.WrappedDistribution(truncated(Normal(μ, σ), lb, ub))
 
 # Set up fixed model parameters
-function create_params(; β=0.3)
+function create_params(; β=0.5)
     Ns = [50; 50; 50]
-    migration_rates = [0.95 0.04 0.01; 0.025 0.95 0.025; 0.01 0.04 0.95]
+    migration_rates = [0.95 0.04 0.01; 0.10 0.85 0.05; 0.01 0.04 0.95]
     β_det = β * ones(3)
     β_und = β_det ./ 10
     death_rate = 0.0
@@ -27,7 +27,8 @@ end
         {:infected => city} ~ trunc_normal(infected, noise, 0, Inf)()
         {:recovered => city} ~ trunc_normal(recovered, noise, 0, Inf)()
     end
-    for (i, agent) in model.agents
+    for (i, agent_id) in enumerate(model.scheduler(model))
+        agent = model.agents[agent_id]
         probs = [c == agent.pos ? 0.99 : 0.01/(model.C-1) for c in 1:model.C]
         {:location => i} ~ Gen.categorical(probs)
     end

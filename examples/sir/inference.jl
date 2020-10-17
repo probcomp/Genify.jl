@@ -18,7 +18,7 @@ show_plots = true
 save_plots = false
 
 run_resimulation_mh = (trace, T, N) -> begin
-    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.75));
     t_start = time()
     trs, scores, data = resimulation_mh(T, observations, N)
     t_stop = time()
@@ -35,7 +35,7 @@ run_resimulation_mh = (trace, T, N) -> begin
 end
 
 run_block_mh = (trace, T, N) -> begin
-    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.75));
     t_start = time()
     trs, scores, data = block_mh(T, observations, N)
     t_stop = time()
@@ -52,7 +52,7 @@ run_block_mh = (trace, T, N) -> begin
 end
 
 run_single_site_mh = (trace, T, N) -> begin
-    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.75));
     t_start = time()
     trs, scores, data = single_site_mh(T, observations, N)
     t_stop = time()
@@ -69,7 +69,7 @@ run_single_site_mh = (trace, T, N) -> begin
 end
 
 run_basic_smc = (trace, T, N) -> begin
-    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.75));
     t_start = time()
     pf_state = basic_smc(T, observations, N);
     t_stop = time()
@@ -90,7 +90,7 @@ run_basic_smc = (trace, T, N) -> begin
 end
 
 run_drift_smc = (trace, T, N) -> begin
-    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.75));
     t_start = time()
     pf_state = drift_smc(T, observations, N);
     t_stop = time()
@@ -112,7 +112,7 @@ run_drift_smc = (trace, T, N) -> begin
 end
 
 run_data_driven_smc = (trace, T, N) -> begin
-    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.75));
     t_start = time()
     pf_state = data_driven_smc(T, observations, N);
     t_stop = time()
@@ -137,12 +137,13 @@ run_experiments = (trace, T, repeats) -> begin
     algs = Dict(
         :basic_smc => (run_basic_smc, 100),
         :data_driven_smc => (run_data_driven_smc, 100),
-        # :resimulation_mh => (run_resimulation_mh, 100)
+        # :resimulation_mh => (run_resimulation_mh, 100),
+        # :block_mh => (run_block_mh, 100)
     )
     df = DataFrame(alg = Symbol[], dur = Float64[], dur_std = Float64[],
                    score = Float64[], score_std = Float64[],
                    β_hat = Float64[], β_std = Float64[], β_rmse = Float64[])
-    for (name, (alg, N)) in algs
+    for (name, (alg, N)) in sort(collect(algs), by=first)
         durs = Vector{Float64}(undef, repeats)
         scores = Vector{Float64}(undef, repeats)
         β_hats = Vector{Float64}(undef, repeats)
@@ -156,6 +157,7 @@ run_experiments = (trace, T, repeats) -> begin
         push!(df, [name, mean(durs), std(durs), mean(scores), std(scores),
                    mean(β_hats), std(β_hats), β_rmse])
         println(df[end, :])
+        GC.gc() # Reclaim unused memory
     end
     return df
 end
@@ -167,9 +169,10 @@ plot_obs(trace)
 show_plots = false
 save_plots = false
 
-df = run_experiments(trace, 50, 1)
+df = run_experiments(trace, 50, 10)
 CSV.write("sir_inference.csv", df)
 
+# dur, trs, scores, ws, data, plt = fill(nothing, 6); GC.gc()
 # dur, trs, scores, ws, data, plt = run_resimulation_mh(trace, 50, 100);
 # dur, trs, scores, ws, data, plt = run_block_mh(trace, 50, 10);
 # dur, trs, scores, ws, data, plt = run_single_site_mh(trace, 50, 100);
