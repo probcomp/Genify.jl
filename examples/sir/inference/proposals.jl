@@ -10,3 +10,13 @@
         end
     end
 end
+
+# Guess beta from the data from initial infection counts
+@gen function init_beta(obs::ChoiceMap, t::Int)
+    params = create_params()
+    cities = 1:length(params[:Ns])
+    infected_0 = sum(params[:Is])
+    infected_t = sum(obs[:step => t => :obs => :infected => c] for c in cities)
+    β_hat = (infected_t/infected_0) ^ (1/t) - 1
+    β ~ trunc_normal(β_hat, 0.1, 0, Inf)()
+end

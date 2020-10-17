@@ -6,7 +6,7 @@ using ProgressMeter: @showprogress
 
 include("model.jl")
 include("utils.jl")
-include("inference/gaussian_drift.jl")
+include("inference/proposals.jl")
 include("inference/resimulation_mh.jl")
 include("inference/block_mh.jl")
 include("inference/single_site_mh.jl")
