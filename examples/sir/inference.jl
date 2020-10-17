@@ -66,7 +66,7 @@ run_basic_smc = (trace, T, N) -> begin
         if show_plots display(plot!()) end
     end
 
-    scores = get_score.(trs)
+    scores = collect(get_score.(trs))
     mean_score = logsumexp(sample(scores, StatsBase.weights(ws), N)) - log(N)
     return (t_stop - t_start), trs, scores, ws, βs, mean_score, plot!()
 end
@@ -88,7 +88,7 @@ run_drift_smc = (trace, T, N) -> begin
         if show_plots display(plot!()) end
     end
 
-    scores = get_score.(trs)
+    scores = collect(get_score.(trs))
     mean_score = logsumexp(sample(scores, StatsBase.weights(ws), N)) - log(N)
     return (t_stop - t_start), trs, scores, ws, βs, mean_score, plot!()
 end
@@ -110,7 +110,7 @@ run_data_driven_smc = (trace, T, N) -> begin
         if show_plots display(plot!()) end
     end
 
-    scores = get_score.(trs)
+    scores = collect(get_score.(trs))
     mean_score = logsumexp(sample(scores, StatsBase.weights(ws), N)) - log(N)
     return (t_stop - t_start), trs, scores, ws, βs, mean_score, plot!()
 end
@@ -129,9 +129,9 @@ run_experiments = (trace, T, repeats) -> begin
         scores = Vector{Float64}(undef, repeats)
         β_hats = Vector{Float64}(undef, repeats)
         for i in 1:repeats
-            durs[i], _, _, ws, data, scores[i], _ = alg(trace, T, N)
+            dur, _, _, ws, data, score, _ = alg(trace, T, N)
+            durs[i], scores[i] = dur, score
             β_hats[i] = mean(data, StatsBase.weights(ws))
-            data = nothing
             GC.gc() # Reclaim unused memory
         end
         push!(df, [name, mean(durs), var(durs), mean(scores), var(scores),
