@@ -6,7 +6,7 @@
     for i in 1:nagents(model)
         loc_addr = :step => t => :obs => :location => i
         if !has_value(obs, loc_addr) continue end
-        probs = [c == obs[loc_addr] ? .95 : .05/(model.C-1) for c in 1:model.C]
+        probs = [c == obs[loc_addr] ? .99 : .01/(model.C-1) for c in 1:model.C]
         {:step => t => :agents => :step! => :agent_step! => 1 =>
          i => :migrate! => :m} ~ Gen.categorical(probs)
     end

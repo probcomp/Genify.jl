@@ -121,9 +121,9 @@ run_experiments = (trace, T, repeats) -> begin
         :data_driven_smc => (run_data_driven_smc, 100),
         # :resimulation_mh => (run_resimulation_mh, 100)
     )
-    df = DataFrame(alg = Symbol[], dur = Float64[], dur_var = Float64[],
-                   score = Float64[], score_var = Float64[],
-                   β_hat = Float64[], β_var = Float64[])
+    df = DataFrame(alg = Symbol[], dur = Float64[], dur_std = Float64[],
+                   score = Float64[], score_std = Float64[],
+                   β_hat = Float64[], β_std = Float64[], β_rmse = Float64[])
     for (name, (alg, N)) in algs
         durs = Vector{Float64}(undef, repeats)
         scores = Vector{Float64}(undef, repeats)
@@ -134,8 +134,9 @@ run_experiments = (trace, T, repeats) -> begin
             β_hats[i] = mean(data, StatsBase.weights(ws))
             GC.gc() # Reclaim unused memory
         end
-        push!(df, [name, mean(durs), var(durs), mean(scores), var(scores),
-                   mean(β_hats), var(β_hats)])
+        β_rmse = mean((β_hats .- trace[:β]).^2).^0.5
+        push!(df, [name, mean(durs), std(durs), mean(scores), std(scores),
+                   mean(β_hats), std(β_hats), β_rmse])
         println(df[end, :])
     end
     return df
@@ -148,7 +149,7 @@ plot_obs(trace)
 show_plots = false
 save_plots = false
 
-df = run_experiments(trace, 50, 10)
+df = run_experiments(trace, 50, 1)
 CSV.write("sir_inference.csv", df)
 
 # dur, trs, scores, ws, data, plt = run_single_site_mh(trace, 50, 100);

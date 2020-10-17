@@ -28,7 +28,7 @@ end
         {:recovered => city} ~ trunc_normal(recovered, noise, 0, Inf)()
     end
     for (i, agent) in model.agents
-        probs = [c == agent.pos ? 0.95 : 0.05/(model.C-1) for c in 1:model.C]
+        probs = [c == agent.pos ? 0.99 : 0.01/(model.C-1) for c in 1:model.C]
         {:location => i} ~ Gen.categorical(probs)
     end
     return obs
