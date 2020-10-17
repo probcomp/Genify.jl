@@ -155,8 +155,6 @@ end
 update!(agent, model) = agent.status == :I && (agent.days_infected += 1)
 
 function recover!(agent, model)
-    r = rand()
-#    r_prob = inv(1 + exp(-agent.days_infected/model.infection_period + 1))
     if agent.days_infected >= model.infection_period
         agent.status = :R
         agent.days_infected = 0
