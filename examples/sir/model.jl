@@ -19,14 +19,17 @@ end
 
 # Define observation model
 @gen function observe(model::ABM, noise::Float64=5.0)
-    agents = values(model.agents)
     obs = zeros(length(nodes(model)) * 2)
     for city in nodes(model)
-        infected = count(a.status == :I && a.pos == city for a in agents)
-        recovered = count(a.status == :R && a.pos == city for a in agents)
+        infected = count(a.status == :I for a in get_node_agents(city, model))
+        recovered = count(a.status == :R for a in get_node_agents(city, model))
         obs[[city*2-1, city*2]] = [infected, recovered]
         {:infected => city} ~ trunc_normal(infected, noise, 0, Inf)()
         {:recovered => city} ~ trunc_normal(recovered, noise, 0, Inf)()
+    end
+    for (i, agent) in model.agents
+        probs = [c == agent.pos ? 0.95 : 0.05/(model.C-1) for c in 1:model.C]
+        {:location => i} ~ Gen.categorical(probs)
     end
     return obs
 end

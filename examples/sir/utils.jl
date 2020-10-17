@@ -1,7 +1,17 @@
-function aggregate_obs(trace::Trace)
+function case_count_obs(trace::Trace)
     T = get_args(trace)[1]
-    obs_addrs = Gen.select([:step => t => :obs for t in 1:T]...)
-    observations = Gen.get_selected(get_choices(trace), obs_addrs)
+    addrs = Gen.select([:step => t => :obs => :infected for t in 1:T]...,
+                       [:step => t => :obs => :recovered for t in 1:T]...)
+    observations = Gen.get_selected(get_choices(trace), addrs)
+    return observations
+end
+
+function location_obs(trace::Trace, frac::Float64=0.5)
+    model, T = get_retval(trace), get_args(trace)[1]
+    tracked = randperm(nagents(model))[1:Int(round(frac * nagents(model)))]
+    addrs = Gen.select([:step => t => :obs => :location => agt
+                        for t in 1:T for agt in tracked]...)
+    observations = Gen.get_selected(get_choices(trace), addrs)
     return observations
 end
 
