@@ -8,6 +8,7 @@ include("model.jl")
 include("utils.jl")
 include("inference/gaussian_drift.jl")
 include("inference/resimulation_mh.jl")
+include("inference/block_mh.jl")
 include("inference/single_site_mh.jl")
 include("inference/basic_smc.jl")
 include("inference/drift_smc.jl")
@@ -26,6 +27,23 @@ run_resimulation_mh = (trace, T, N) -> begin
         plot_obs(trace, [1]); plot_obs!(trs, [1], lw=1, color=:grey)
         plot!(legend=:topleft, title="Resimulation MH, N=$(N)")
         if save_plots savefig("images/resimulation_mh.png") end
+        if show_plots display(plot!()) end
+    end
+
+    mean_score = logsumexp(scores) - log(N)
+    return (t_stop - t_start), trs, scores, ones(N), data.β, mean_score, plot!()
+end
+
+run_block_mh = (trace, T, N) -> begin
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
+    t_start = time()
+    trs, scores, data = block_mh(T, observations, N)
+    t_stop = time()
+
+    if show_plots || save_plots
+        plot_obs(trace, [1]); plot_obs!(trs, [1], lw=1, color=:grey)
+        plot!(legend=:topleft, title="Block resimulation MH, N=$(N)")
+        if save_plots savefig("images/block_mh.png") end
         if show_plots display(plot!()) end
     end
 
@@ -152,8 +170,9 @@ save_plots = false
 df = run_experiments(trace, 50, 1)
 CSV.write("sir_inference.csv", df)
 
-# dur, trs, scores, ws, data, plt = run_single_site_mh(trace, 50, 100);
 # dur, trs, scores, ws, data, plt = run_resimulation_mh(trace, 50, 100);
+# dur, trs, scores, ws, data, plt = run_block_mh(trace, 50, 10);
+# dur, trs, scores, ws, data, plt = run_single_site_mh(trace, 50, 100);
 # dur, trs, scores, ws, data, plt = run_basic_smc(trace, 50, 100);
 # dur, trs, scores, ws, data, plt = run_drift_smc(trace, 50, 100);
 # dur, trs, scores, ws, data, plt = run_data_driven_smc(trace, 50, 100);
