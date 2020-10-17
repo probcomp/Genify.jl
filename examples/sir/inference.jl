@@ -2,7 +2,6 @@ module Inference
 
 using Gen, Genify, GenParticleFilters, Distributions
 using ProgressMeter: @showprogress
-using JLD2
 
 include("model.jl")
 include("utils.jl")
@@ -14,7 +13,7 @@ include("inference/drift_smc.jl")
 include("inference/data_driven_smc.jl")
 
 run_resimulation_mh = (trace, T, N) -> begin
-    observations = case_count_obs(trace)
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
     trs, scores, data = resimulation_mh(T, observations, N)
     plot_obs(trace, [1])
     plot_obs!(trs, [1], lw=1, color=:grey)
@@ -23,9 +22,8 @@ run_resimulation_mh = (trace, T, N) -> begin
 end
 
 run_single_site_mh = (trace, T, N) -> begin
-    observations = case_count_obs(trace)
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
     trs, scores, data = single_site_mh(T, observations, N)
-    #@save "stored/single_site_mh.jld2" {compress=true} trs
     plot_obs(trace, [1])
     plot_obs!(trs, [1], lw=1, color=:grey)
     plot!(legend=:topleft, title="Single site MH, N=$(N)")
@@ -33,7 +31,7 @@ run_single_site_mh = (trace, T, N) -> begin
 end
 
 run_basic_smc = (trace, T, N) -> begin
-    observations = case_count_obs(trace)
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
     pf_state = basic_smc(T, observations, N);
     lml_est = log_ml_estimate(pf_state)
     β_hat, β_var = mean(pf_state, :β), var(pf_state, :β)
@@ -44,23 +42,10 @@ run_basic_smc = (trace, T, N) -> begin
     plot_obs!(trs, ws, [1], lw=1, color=:grey)
     plot!(legend=:topleft, title="Vanilla SMC, N=$(N)")
     savefig("images/smc_no_migration.png")
-
-    observations = case_count_obs(trace)
-    m_observations = merge(observations, migration_obs(trace));
-    pf_state = basic_smc(T, m_observations, N);
-    lml_est = log_ml_estimate(pf_state)
-    β_hat, β_var = mean(pf_state, :β), var(pf_state, :β)
-    βs = [tr[:β] for tr in pf_state.traces]
-    trs, ws = get_traces(pf_state), get_norm_weights(pf_state);
-
-    plot_obs(trace, [1])
-    plot_obs!(trs, ws, [1], lw=1, color=:grey)
-    plot!(legend=:topleft, title="SMC with conditioning on migration history, N=$(N)")
-    savefig("images/smc_with_migration.png")
 end
 
 run_drift_smc = (trace, T, N) -> begin
-    observations = case_count_obs(trace)
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
     pf_state = drift_smc(T, observations, N);
     lml_est = log_ml_estimate(pf_state)
     β_hat, β_var = mean(pf_state, :β), var(pf_state, :β)
@@ -74,7 +59,7 @@ run_drift_smc = (trace, T, N) -> begin
 end
 
 run_data_driven_smc = (trace, T, N) -> begin
-    observations = case_count_obs(trace)
+    observations = merge(case_count_obs(trace), location_obs(trace, frac=0.5));
     pf_state = data_driven_smc(T, observations, N);
     lml_est = log_ml_estimate(pf_state)
     β_hat, β_var = mean(pf_state, :β), var(pf_state, :β)

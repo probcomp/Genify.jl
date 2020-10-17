@@ -6,7 +6,7 @@ function case_count_obs(trace::Trace)
     return observations
 end
 
-function location_obs(trace::Trace, frac::Float64=0.5)
+function location_obs(trace::Trace; frac::Float64=0.5)
     model, T = get_retval(trace), get_args(trace)[1]
     tracked = randperm(nagents(model))[1:Int(round(frac * nagents(model)))]
     addrs = Gen.select([:step => t => :obs => :location => agt
