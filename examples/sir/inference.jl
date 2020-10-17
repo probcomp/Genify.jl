@@ -148,7 +148,7 @@ plot_obs(trace)
 show_plots = false
 save_plots = false
 
-df = run_experiments(trace, 50, 100)
+df = run_experiments(trace, 50, 10)
 CSV.write("sir_inference.csv", df)
 
 # dur, trs, scores, ws, data, plt = run_single_site_mh(trace, 50, 100);
