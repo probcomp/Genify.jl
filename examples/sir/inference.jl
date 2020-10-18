@@ -137,8 +137,8 @@ run_experiments = (trace, T, repeats) -> begin
     algs = Dict(
         :basic_smc => (run_basic_smc, 100),
         :data_driven_smc => (run_data_driven_smc, 100),
-        # :resimulation_mh => (run_resimulation_mh, 100),
-        # :block_mh => (run_block_mh, 100)
+        :resimulation_mh => (run_resimulation_mh, 100),
+        :block_mh => (run_block_mh, 100)
     )
     df = DataFrame(alg = Symbol[], dur = Float64[], dur_std = Float64[],
                    score = Float64[], score_std = Float64[],
