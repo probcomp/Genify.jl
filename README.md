@@ -16,7 +16,6 @@ add https://github.com/probcomp/Genify.jl.git
 `Genify.jl` allows one to convert stochastic functions from plain Julia into Gen, enabling programmable inference via the manipulation of internal random variables. Suppose we have the following simulator of a noisy weighing scale, written in Julia, which samples the mass of the weighed object, and simulates `n` measurements:
 
 ```julia
-using Gen, Genify
 using Distributions: Normal
 
 function scale(n::Int)
@@ -37,7 +36,9 @@ end
 We can convert the `scale` method into generative function `genscale` using `genify`. Note that we need to specify both the name of `scale`, as well as the types of its arguments:
 
 ```julia
-julia> genscale = genify(scale, Int);
+using Gen, Genify
+genscale = genify(scale, Int)
+
 julia> typeof(genscale)
 Gen.DynamicDSLFunction{Any}
 ```
@@ -80,4 +81,4 @@ julia> mass_est
 4.288428017814824
 ```
 
-For more complex examples of programmable inference over transformed Julia code, see the [`examples`](examples) directory.
+For more examples of programmable inference over transformed Julia code, see the [`examples`](examples) directory.
