@@ -4,7 +4,7 @@ An example of programmable inference for an existing Julia simulators. We adapt 
 
 Our inference task is as follows: given infection and recovery counts in three connected cities with 50 agents each, as well as location data for 75% of the agents (e.g. from opt-in contact tracing), infer the infection rate β:
 
-![Bayesian parameter estimation for an agent-based SIR model](./images/sir-inference.png)
+![Bayesian parameter estimation for an agent-based SIR model](./images/sir_inference.png)
 
 ## Instructions
 
