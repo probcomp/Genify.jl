@@ -63,3 +63,20 @@ function plot_obs!(trs::AbstractVector{<:Trace}, ws::AbstractVector{Float64},
     end
     return plot!()
 end
+
+function plot_obs_3d!(tr::Trace, cities=nothing; kwargs...)
+    model = get_retval(tr)
+    cities = isnothing(cities) ? collect(1:model.C) : cities
+    cnames = reduce(vcat, [[Symbol(:I, i), Symbol(:R, i)] for i in cities])
+    df = obs_dataframe(tr)[:, cnames]
+    T = size(df)[1]
+    for (z, (iname, rname)) in enumerate(partition(cnames, 2))
+        plot!(1:T, fill(z, T), df[!, iname]; label=(z==1 ? "Infected" : ""),
+              lw=2, ls=:solid, color=:salmon, alpha=1-(z-1)*0.25)
+        plot!(1:T, fill(z, T), df[!, rname]; label=(z==1 ? "Recovered" : ""),
+              lw=2, ls=:dash, color=:royalblue, alpha=1-(z-1)*0.25)
+    end
+    ylims!(0.5, model.C+0.5)
+    yticks!(1:model.C, ["City $i" for i in 1:model.C])
+    return plot!(camera=(15,15), size=(500,300), legend=:topleft, kwargs...)
+end
