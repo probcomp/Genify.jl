@@ -1,5 +1,3 @@
-module Inference
-
 using Gen, Genify, GenParticleFilters, Distributions, StatsBase
 using DataFrames, CSV
 using ProgressMeter: @showprogress
@@ -170,7 +168,7 @@ show_plots = false
 save_plots = false
 
 df = run_experiments(trace, 50, 10)
-CSV.write("sir_inference.csv", df)
+CSV.write("results.csv", df)
 
 # dur, trs, scores, ws, data, plt = fill(nothing, 6); GC.gc()
 # dur, trs, scores, ws, data, plt = run_resimulation_mh(trace, 50, 100);
@@ -179,5 +177,3 @@ CSV.write("sir_inference.csv", df)
 # dur, trs, scores, ws, data, plt = run_basic_smc(trace, 50, 100);
 # dur, trs, scores, ws, data, plt = run_drift_smc(trace, 50, 100);
 # dur, trs, scores, ws, data, plt = run_data_driven_smc(trace, 50, 100);
-
-end # module
