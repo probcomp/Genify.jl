@@ -4,18 +4,18 @@ An example of programmable inference for an existing Julia simulators. We adapt 
 
 Our inference task is as follows: given infection and recovery counts in three connected cities with 50 agents each, as well as location data for 75% of the agents (e.g. from opt-in contact tracing), infer the infection rate β:
 
-![Bayesian parameter estimation for an agent-based SIR model](./images/sir_inference.png)
+![Bayesian parameter estimation for an agent-based SIR model](images/sir_inference.png)
 
 ## Instructions
 
-To run this example, first activate the local environment via the package manager. Assuming Julia was started in the top-level package directory `Genify.jl`,  run:
+To run this example, first activate the local environment via the package manager. Assuming Julia was started in the top-level package directory,  run:
 ```
 ; cd examples/sir
 ] activate .
 ] instantiate
 ```
 
-Including the top-level script [`inference.jl`](inference.jl) will run all experiments:
+Including the script [`inference.jl`](inference.jl) will run all experiments:
 ```
 include("./inference.jl")
 ```
