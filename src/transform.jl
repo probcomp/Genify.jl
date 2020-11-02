@@ -51,7 +51,7 @@ arguments.
 - `useslots::Bool=true`: if true, use slot (i.e. variable) names as trace
         addresses where possible.
 - `naming::Symbol=:static`: scheme for generating address names, defaults to
-        `static` generation at compile time.
+        static generation at compile time.
 - `options=nothing`: the above options can also be provided as parameters in an
         [`Options`](@ref) struct, overriding any other values specified.
 """

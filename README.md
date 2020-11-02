@@ -11,9 +11,24 @@ At the Julia REPL, press `]` to enter the package manager, then run:
 add https://github.com/probcomp/Genify.jl.git
 ```
 
+## Usage
+
+`Genify.jl` allows one to convert stochastic functions from plain Julia into Gen, enabling programmable inference via the manipulation of internal random variables. The user-level function for transforming Julia methods is `genify`, documented below:
+
+> `genify(fn, arg_types...; kwargs...)`
+>
+> Transforms a Julia method into a dynamic Gen function. `fn` can be a `Function` or any other callable object, and `arg_types` are the types of the corresponding arguments.
+>
+> **Arguments**
+- `recurse::Bool=true`: recursively `genify` methods called by `fn` if true.
+- `useslots::Bool=true`: if true, use slot (i.e. variable) names as trace
+    addresses where possible.
+- `naming::Symbol=:static`: scheme for generating address names, defaults to static generation at compile time.
+
+
 ## Example
 
-`Genify.jl` allows one to convert stochastic functions from plain Julia into Gen, enabling programmable inference via the manipulation of internal random variables. Suppose we have the following simulator of a noisy weighing scale, written in Julia, which samples the mass of the weighed object, and simulates `n` measurements:
+Suppose we have the following simulator of a noisy weighing scale, written in Julia, which samples the mass of the weighed object, and simulates `n` measurements:
 
 ```julia
 using Distributions: Normal
