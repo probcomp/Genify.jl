@@ -20,10 +20,10 @@ add https://github.com/probcomp/Genify.jl.git
 > Transforms a Julia method into a dynamic Gen function. `fn` can be a `Function` or any other callable object, and `arg_types` are the types of the corresponding arguments.
 >
 > **Arguments**
-- `recurse::Bool=true`: recursively `genify` methods called by `fn` if true.
-- `useslots::Bool=true`: if true, use slot (i.e. variable) names as trace
+> - `recurse::Bool=true`: recursively `genify` methods called by `fn` if true.
+> - `useslots::Bool=true`: if true, use slot (i.e. variable) names as trace
     addresses where possible.
-- `naming::Symbol=:static`: scheme for generating address names, defaults to static generation at compile time.
+> - `naming::Symbol=:static`: scheme for generating address names, defaults to static generation at compile time.
 
 
 ## Example
