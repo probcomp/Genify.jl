@@ -15,17 +15,30 @@ add https://github.com/probcomp/Genify.jl.git
 
 `Genify.jl` allows one to convert stochastic functions from plain Julia into Gen, enabling programmable inference via the manipulation of internal random variables. The user-level function for transforming Julia methods is `genify`, documented below:
 
-> `genify(fn, arg_types...; kwargs...)`
+> `genify(fn, arg_types...; kwargs...)` or `genify(options, fn, arg_types)`
 >
-> Transforms a Julia method into a dynamic Gen function. `fn` can be a `Function` or any other callable object, and `arg_types` are the types of the corresponding arguments.
+> Transforms a Julia method into a dynamic Gen function.
 >
-> **Arguments**
+> **Arguments:**
+> - `fn`: a `Function`, `Type` constructor, or (if the second form is used)
+    any other callable object.
+> - `arg_types`: The types of the arguments for the method to be transformed.
+>
+> **Keyword Arguments:**
 > - `recurse::Bool=true`: recursively `genify` methods called by `fn` if true.
 > - `useslots::Bool=true`: if true, use slot (i.e. variable) names as trace
     addresses where possible.
 > - `naming::Symbol=:static`: scheme for generating address names, defaults to
     static generation at compile time. Use `:manual` for user-specified
     addresses (e.g., `rand(:z, Normal(0, 1))`)
+> - `options`: the above options can also be provided as parameters in an
+    `Options` struct, or as a `Symbol` from the list of named
+    option sets overriding any other values specified:
+>   - `:minimal` corresponds to `recurse=false, useslots=false, naming=:static`
+>   - `:default` corresponds to `recurse=true, useslots=true, naming=:static`
+>   - `:manual` corresponds to `recurse=true, useslots=false, naming=:manual`
+
+`genify` should only be used at the REPL, or at the top-level of a script or module. A memoized version, `genified`, is designed to be used within other Gen functions.
 
 ## Example
 

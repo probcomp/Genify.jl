@@ -1,6 +1,6 @@
 module Genify
 
-export genify
+export genify, genified
 
 using Gen, Distributions, StatsBase, Random, IRTools
 using IRTools:

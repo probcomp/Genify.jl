@@ -191,7 +191,7 @@ function observe(theta::Real)
     return (x, y, z)
 end
 
-genmodel = genify(model, Real; options=Genify.ManualOptions())
+genmodel = genify(:manual, model, Real)
 
 # Test simulate
 trace = simulate(genmodel, (1,))
@@ -265,5 +265,28 @@ trace, weight, _ = regenerate(trace, (1,), (NoChange(),), select(:obs))
 genmodel = genify(model, Real; recurse=false)
 choices, _, _ = propose(genmodel, (1,))
 @test :obs ∉ keys(nested_view(choices))
+
+end
+
+@testset "Memoized transformation" begin
+
+function foo(alpha::Real, beta::Real)
+    p = rand(Beta(alpha, beta))
+    coin = rand(Bernoulli(p))
+    return coin
+end
+
+genfoo1 = genified(foo, Real, Real)
+genfoo2 = genify(foo, Real, Real)
+genfoo3 = genified(foo, Real, Real)
+genfoo4 = genify(foo, Real, Real)
+genfoo5 = genified(:minimal, foo, Real, Real)
+genfoo6 = genified(foo, Real, Real, recurse=false, useslots=false)
+
+@test genfoo1 !== genfoo2
+@test genfoo1 === genfoo3
+@test genfoo2 !== genfoo4
+@test genfoo1 !== genfoo5
+@test genfoo5 === genfoo6
 
 end

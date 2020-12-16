@@ -11,6 +11,11 @@ struct Options{R, U, S} end
 const MinimalOptions = Options{false, false, :static}
 const DefaultOptions = Options{true, true, :static}
 const ManualOptions = Options{true, false, :manual}
+const named_options = Dict{Symbol,Options}(
+    :minimal => MinimalOptions(),
+    :default => DefaultOptions(),
+    :manual => ManualOptions()
+)
 
 Options(recurse::Bool, useslots::Bool, naming::Symbol) =
     Options{recurse, useslots, naming}()
@@ -42,23 +47,30 @@ signature(::TracedFunction{S}) where {S} = S
 
 """
     genify(fn, arg_types...; kwargs...)
+    genify(options, fn, arg_types)
 
-Transforms a Julia method into a dynamic Gen function. `fn` can be a `Function`
-or any other callable object, and `arg_types` are the types of the corresponding
-arguments.
+Transforms a Julia method into a dynamic Gen function.
 
 # Arguments:
+- `fn`: a `Function`, `Type` constructor, or (if the second form is used)
+        any other callable object.
+- `arg_types`: The types of the arguments for the method to be transformed.
+
+# Keyword Arguments:
 - `recurse::Bool=true`: recursively `genify` methods called by `fn` if true.
 - `useslots::Bool=true`: if true, use slot (i.e. variable) names as trace
         addresses where possible.
 - `naming::Symbol=:static`: scheme for generating address names, defaults to
         static generation at compile time. Use `:manual` for user-specified
         addresses (e.g., `rand(:z, Normal(0, 1))`)
-- `options=nothing`: the above options can also be provided as parameters in an
-        [`Options`](@ref) struct, overriding any other values specified.
+- `options`: the above options can also be provided as parameters in an
+        [`Options`](@ref) struct, or as a `Symbol` from the list of named
+        option sets overriding any other values specified:
+  - `:minimal` corresponds to `recurse=false, useslots=false, naming=:static`
+  - `:default` corresponds to `recurse=true, useslots=true, naming=:static`
+  - `:manual` corresponds to `recurse=true, useslots=false, naming=:manual`
 """
-function genify(fn, arg_types::Type...; options=nothing, recurse::Bool=true,
-                useslots::Bool=true, naming::Symbol=:static)
+function genify(options::Options, fn, arg_types::Type...)
     # Get name and IR of function
     fn_name = nameof(fn)
     n_args = length(arg_types)
@@ -67,7 +79,6 @@ function genify(fn, arg_types::Type...; options=nothing, recurse::Bool=true,
     arg_types = signature(fn_type, arg_types...)
     if isnothing(arg_types) error("No method definition available for $fn.") end
     # Construct traced function
-    options = isnothing(options) ? Options(recurse, useslots, naming) : options
     traced_fn = TracedFunction(fn, Tuple{arg_types...}, options)
     # Embed traced function within dynamic generative function
     arg_defaults = fill(nothing, n_args)
@@ -79,15 +90,37 @@ function genify(fn, arg_types::Type...; options=nothing, recurse::Bool=true,
     return gen_fn
 end
 
+function genify(options::Symbol, fn, arg_types::Type...)
+    return genify(named_options[options], fn, arg_types...)
+end
+
+function genify(fn::Union{Function,Type}, arg_types::Type...;
+                options=nothing, recurse::Bool=true,
+                useslots::Bool=true, naming::Symbol=:static)
+    options = isnothing(options) ? Options(recurse, useslots, naming) : options
+    return genify(options, fn, arg_types...)
+end
+
 "Memoized [`genify`](@ref) that compiles specialized versions of itself."
 function genified(options::Options, fn, arg_types::Type...)
-    gen_fn = genify(fn, arg_types...; options=options)
+    gen_fn = genify(options, fn, arg_types...)
     op_type, fn_type = typeof(options), typeof(fn)
     args = [:(::$(QuoteNode(Type{T}))) for T in arg_types]
     @eval function genified(options::$op_type, fn::$fn_type, $(args...))
         return $gen_fn
     end
     return gen_fn
+end
+
+function genified(options::Symbol, fn, arg_types::Type...)
+    return genified(named_options[options], fn, arg_types...)
+end
+
+function genified(fn::Union{Function,Type}, arg_types::Type...;
+                  options=nothing, recurse::Bool=true,
+                  useslots::Bool=true, naming::Symbol=:static)
+    options = isnothing(options) ? Options(recurse, useslots, naming) : options
+    return genified(options, fn, arg_types...)
 end
 
 """
