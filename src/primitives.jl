@@ -4,6 +4,20 @@ const randprims = Set([
 ])
 const primnames = Set(Symbol(fn) for fn in randprims)
 
+## Manual addressing ##
+
+# Forward manually addressed calls for each random primitive
+for fn in randprims
+    @eval @inline trace(options::Options, state, ::ManualAddress, ::typeof($fn), addr::Address, args...) =
+        trace(options, state, addr::Address, $fn, args...)
+    @eval @inline trace(options::Options, state, ::ManualAddress, ::typeof($fn), ::AbstractRNG, addr::Address, args...) =
+        trace(options, state, addr::Address, $fn, rng, args...)
+end
+
+# Forward traced function calls that are manually addressed via rand
+trace(options::Options, state, ::ManualAddress, ::typeof(rand), addr::Address, fn::Function, args...) =
+    trace(options, state, addr::Address, fn, args...)
+
 ## rand ##
 
 # Strip away RNGs supplied to rand

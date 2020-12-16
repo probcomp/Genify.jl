@@ -104,7 +104,7 @@ genfoo = genify(foo, Vector{Float64}, Float64, Tuple{Int,Float64})
 
 end
 
-@testset "Automatic random variable naming" begin
+@testset "Automatic addressing" begin
 
 # Test straight line code
 function foo(x::Int)
@@ -174,6 +174,49 @@ function bar() return rand() end
 genfoo = genify(foo, UnivariateDistribution, Any; useslots=false)
 choices, _, _ = propose(genfoo, (Normal(0, 1), bar))
 @test (:callee, :rand_dist) ⊆ keys(nested_view(choices))
+
+end
+
+@testset "Manual addressing" begin
+
+function model(mu::Real)
+    θ = rand(:theta, LogNormal(mu, 1))
+    x = rand(:obs, observe, θ)
+end
+
+function observe(theta::Real)
+    x = rand(:m1, Normal(theta, 1))
+    y = rand(:m2, Normal(theta, 2))
+    z = rand(:m3, Normal(theta, 3))
+    return (x, y, z)
+end
+
+genmodel = genify(model, Real; options=Genify.ManualOptions())
+
+# Test simulate
+trace = simulate(genmodel, (1,))
+@test trace[:theta] >= 0
+@test trace[:obs] isa Tuple{Float64, Float64, Float64}
+@test trace[:obs => :m1] isa Float64
+@test trace[:obs => :m2] isa Float64
+@test trace[:obs => :m3] isa Float64
+
+# Test generate
+observations = choicemap((:obs => :m1, 3), (:obs => :m2, 3), (:obs => :m3, 3))
+trace, weight = generate(genmodel, (1,), observations)
+@test trace[:obs => :m1] == 3
+@test trace[:obs => :m2] == 3
+@test trace[:obs => :m3] == 3
+@test weight ≈ sum(Gen.logpdf(normal, 3, trace[:theta], i) for i in 1:3)
+
+# Test regenerate
+prev_trace = trace
+trace, weight, _ = regenerate(trace, (1,), (NoChange(),), select(:theta))
+@test trace[:obs] == prev_trace[:obs]
+
+prev_trace = trace
+trace, weight, _ = regenerate(trace, (1,), (NoChange(),), select(:obs))
+@test trace[:theta] == prev_trace[:theta]
 
 end
 

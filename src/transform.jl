@@ -10,6 +10,7 @@ that they are accessible within `@generated` functions.
 struct Options{R, U, S} end
 const MinimalOptions = Options{false, false, :static}
 const DefaultOptions = Options{true, true, :static}
+const ManualOptions = Options{true, false, :manual}
 
 Options(recurse::Bool, useslots::Bool, naming::Symbol) =
     Options{recurse, useslots, naming}()
@@ -51,7 +52,8 @@ arguments.
 - `useslots::Bool=true`: if true, use slot (i.e. variable) names as trace
         addresses where possible.
 - `naming::Symbol=:static`: scheme for generating address names, defaults to
-        static generation at compile time.
+        static generation at compile time. Use `:manual` for user-specified
+        addresses (e.g., `rand(:z, Normal(0, 1))`)
 - `options=nothing`: the above options can also be provided as parameters in an
         [`Options`](@ref) struct, overriding any other values specified.
 """
@@ -117,7 +119,7 @@ call to [`genify`](@ref).
 function trace end
 
 @generated function trace(options::Options, state, addr::Address, fn, args...)
-    recurse, _, _ = unpack(options())
+    recurse, _, naming = unpack(options())
     if !recurse return :(fn(args...)) end
     arg_types = signature(fn, args...)
     if isnothing(arg_types) return :(fn(args...)) end
@@ -138,17 +140,25 @@ function transform!(ir::IR, options::Options=MinimalOptions())
         # Unpack call
         fn, args, calltype = unpack_call(stmt.expr)
         # Filter out untraced calls
-        if !istraced(ir, fn, recurse) continue end
-        # Generate address name from function name and arguments
-        addr = genaddr(ir, fn, unpack_args(ir, args, calltype))
-        addr = insert!(ir, x, QuoteNode(addr))
-        rand_addrs[x] = addr # Remember IRVar for address
+        if !istraced(ir, fn, recurse && naming != :manual) continue end
+        if naming == :static
+            # Statically generate address name from function name and arguments
+            addr = genaddr(ir, fn, unpack_args(ir, args, calltype))
+            addr = insert!(ir, x, QuoteNode(addr))
+            rand_addrs[x] = addr # Remember IRVar for address
+        elseif naming == :manual
+            addr = ManualAddress() # Handle manual addressing via dispatch
+        else
+            error("Unrecognized naming scheme :$naming")
+        end
         # Rewrite statement by wrapping call within `trace`
         rewrite!(ir, x, calltype, QuoteNode(options), state, addr, fn, args)
     end
-    if (useslots) slotaddrs!(ir, rand_addrs) end # Name addresses using slots
-    uniqueaddrs!(ir, rand_addrs) # Ensure uniqueness of random addresses
-    loopaddrs!(ir, rand_addrs) # Add loop indices to addresses
+    if naming != :manual
+        if (useslots) slotaddrs!(ir, rand_addrs) end # Name addresses with slots
+        uniqueaddrs!(ir, rand_addrs) # Ensure uniqueness of random addresses
+        loopaddrs!(ir, rand_addrs) # Add loop indices to addresses
+    end
     return ir
 end
 

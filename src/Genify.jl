@@ -12,6 +12,7 @@ using IRTools:
 const Address = Union{Symbol, Pair{Symbol}}
 const Setlike = Union{AbstractSet, AbstractDict}
 const Indexable = Union{AbstractArray, Tuple, AbstractString}
+struct ManualAddress end # Placeholder for manual addressing scheme
 
 include("utils.jl")
 include("transform.jl")

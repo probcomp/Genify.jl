@@ -23,8 +23,9 @@ add https://github.com/probcomp/Genify.jl.git
 > - `recurse::Bool=true`: recursively `genify` methods called by `fn` if true.
 > - `useslots::Bool=true`: if true, use slot (i.e. variable) names as trace
     addresses where possible.
-> - `naming::Symbol=:static`: scheme for generating address names, defaults to static generation at compile time.
-
+> - `naming::Symbol=:static`: scheme for generating address names, defaults to
+    static generation at compile time. Use `:manual` for user-specified
+    addresses (e.g., `rand(:z, Normal(0, 1))`)
 
 ## Example
 
