@@ -147,10 +147,11 @@ end
 Trace random primitives or arbitrary methods. Random primitives are traced
 by constructing the appropriate `Gen.Distribution`. Arbitrary methods are
 traced by converting them to `Gen.DynamicDSLFunction`s via a memoized
-call to [`genify`](@ref).
+call to [`genify`](@ref). Constructor methods are not traced.
 """
 function trace end
 
+# Trace arbitrary methods
 @generated function trace(options::Options, state, addr::Address, fn, args...)
     recurse, _, naming = unpack(options())
     if !recurse return :(fn(args...)) end
@@ -159,6 +160,9 @@ function trace end
     gen_fn = :($(GlobalRef(Genify, :genified))(options, fn, $(arg_types...)))
     return :($(GlobalRef(Gen, :traceat))(state, $gen_fn, args, addr))
 end
+
+# Avoid tracing constructor methods
+@inline trace(::Options, state, ::Address, fn::Type, args...) = fn(args...)
 
 "Transform the IR by wrapping sub-calls in `trace`(@ref)."
 function transform!(ir::IR, options::Options=MinimalOptions())

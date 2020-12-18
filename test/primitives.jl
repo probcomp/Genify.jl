@@ -269,4 +269,33 @@ trace, weight = generate(genfoo, (), choicemap(:b => fill('w', (10, 10))))
 
 end
 
+@testset "Primitives with RNGs" begin
+
+function foo(n::Int)
+    rng = MersenneTwister(0)
+    a = rand(rng, Int8)
+    b = rand(rng, Float32, n)
+    c = rand(rng, "world")
+    d = rand(rng, Wishart(5, [1.0 0.0; 0.0 1.0]))
+    e = randexp(rng)
+    f = randn(rng)
+    g = randperm(rng, n)
+    h = randcycle(rng, n)
+end
+
+genfoo = genify(foo, Int)
+
+# Check types
+trace = simulate(genfoo, (10,))
+@test trace[:a] isa Int8
+@test trace[:b] isa Vector{Float32}
+@test trace[:c] isa Char
+@test trace[:d] isa Matrix{Float64}
+@test trace[:e] isa Float64
+@test trace[:f] isa Float64
+@test trace[:g] isa Vector{Int}
+@test trace[:h] isa Vector{Int}
+
+end
+
 end
