@@ -18,11 +18,14 @@ end
 trace(options::Options, state, ::ManualAddress, ::typeof(rand), addr::Address, fn::Function, args...) =
     trace(options, state, addr::Address, fn, args...)
 
-## rand ##
+## Strip RNGs supplied to primitives
 
-# Strip away RNGs supplied to rand
-@inline trace(options::Options, state, addr::Address, ::typeof(rand), rng::AbstractRNG, args...) =
-    trace(options, state, addr::Address, rand, args...)
+for fn in randprims
+    @eval @inline trace(options::Options, state, addr::Address, ::typeof($fn), ::AbstractRNG, args...) =
+        trace(options, state, addr::Address, $fn, args...)
+end
+
+## rand ##
 
 # Default to uniformly sampling Float64 values from [0, 1]
 @inline trace(options::Options, state, addr::Address, ::typeof(rand)) =
@@ -72,10 +75,6 @@ trace(options::Options, state, ::ManualAddress, ::typeof(rand), addr::Address, f
 
 ## randn ##
 
-# Strip away RNGs supplied to randn
-@inline trace(options::Options, state, addr::Address, ::typeof(randn), rng::AbstractRNG, args...) =
-    trace(options, state, addr::Address, randn, args...)
-
 # Default to sampling Float64 values
 @inline trace(options::Options, state, addr::Address, ::typeof(randn)) =
     trace(options, state, addr::Address, randn, Float64)
@@ -99,10 +98,6 @@ trace(options::Options, state, ::ManualAddress, ::typeof(rand), addr::Address, f
     Gen.traceat(state, ArrayedDistribution(Gen.normal, d, dims...), (0, 1), addr)
 
 ## randexp ##
-
-# Strip away RNGs supplied to randexp
-@inline trace(options::Options, state, addr::Address, ::typeof(randexp), rng::AbstractRNG, args...) =
-    trace(options, state, addr::Address, randexp, args...)
 
 # Default to sampling Float64 values
 @inline trace(options::Options, state, addr::Address, ::typeof(randexp)) =
@@ -128,12 +123,6 @@ trace(options::Options, state, ::ManualAddress, ::typeof(rand), addr::Address, f
 
 ## randperm, randcycle ##
 
-# Strip away RNGs supplied
-@inline trace(options::Options, state, addr::Address, ::typeof(randperm), rng::AbstractRNG, args...) =
-    trace(options, state, addr::Address, randperm, args...)
-@inline trace(options::Options, state, addr::Address, ::typeof(randcycle), rng::AbstractRNG, args...) =
-    trace(options, state, addr::Address, randcycle, args...)
-
 # Forward to corresponding Gen distributions
 @inline trace(options::Options, state, addr::Address, ::typeof(randperm), n::Integer) =
     Gen.traceat(state, RandomPermutation(n), (), addr)
@@ -141,10 +130,6 @@ trace(options::Options, state, ::ManualAddress, ::typeof(rand), addr::Address, f
     Gen.traceat(state, RandomCycle(n), (), addr)
 
 ## sample ##
-
-# Strip away RNGs supplied to randexp
-@inline trace(options::Options, state, addr::Address, ::typeof(sample), rng::AbstractRNG, args...) =
-    trace(options, state, addr::Address, sample, args...)
 
 # Unweighted sample
 @inline trace(::Options, state, addr::Address, ::typeof(sample), a::AbstractArray{T}) where {T} =
