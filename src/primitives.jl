@@ -1,6 +1,6 @@
 ## Rewrites random primitives as Gen distributions
 const randprims = Set([
-    rand, randn, randexp, randperm, shuffle, sample
+    rand, randn, randexp, randperm, randcycle, shuffle, sample
 ])
 const primnames = Set(Symbol(fn) for fn in randprims)
 
@@ -125,6 +125,20 @@ trace(options::Options, state, ::ManualAddress, ::typeof(rand), addr::Address, f
     Gen.traceat(state, ArrayedDistribution(Gen.exponential, dims), (1,), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(randexp), T::Type{Float64}, d::Integer, dims::Integer...) =
     Gen.traceat(state, ArrayedDistribution(Gen.exponential, d, dims...), (1,), addr)
+
+## randperm, randcycle ##
+
+# Strip away RNGs supplied
+@inline trace(options::Options, state, addr::Address, ::typeof(randperm), rng::AbstractRNG, args...) =
+    trace(options, state, addr::Address, randperm, args...)
+@inline trace(options::Options, state, addr::Address, ::typeof(randcycle), rng::AbstractRNG, args...) =
+    trace(options, state, addr::Address, randcycle, args...)
+
+# Forward to corresponding Gen distributions
+@inline trace(options::Options, state, addr::Address, ::typeof(randperm), n::Integer) =
+    Gen.traceat(state, RandomPermutation(n), (), addr)
+@inline trace(options::Options, state, addr::Address, ::typeof(randcycle), n::Integer) =
+    Gen.traceat(state, RandomCycle(n), (), addr)
 
 ## sample ##
 

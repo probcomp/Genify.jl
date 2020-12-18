@@ -204,6 +204,41 @@ trace, weight = generate(genfoo, (10,), choicemap(:c => ones(10), :d => ones(10)
 
 end
 
+@testset "randperm() and randcycle() statements" begin
+
+function foo(n::Int)
+    for i in 1:100
+        a = randperm(n)
+        b = randcycle(n)
+    end
+end
+
+genfoo = genify(foo, Int)
+
+# Check types
+trace = simulate(genfoo, (5,))
+@test all(trace[:a => i] isa Vector{Int} for i in 1:100)
+@test all(trace[:b => i] isa Vector{Int} for i in 1:100)
+
+# Test array sizes
+@test all(length(trace[:a => i]) == 5 for i in 1:100)
+@test all(length(trace[:b => i]) == 5 for i in 1:100)
+
+# Test ranges
+@test all(isperm(trace[:a => i]) for i in 1:100)
+@test all(Genify.iscycle(trace[:b => i]) for i in 1:100)
+
+# Test generate with constraints
+choices = choicemap((:a => 1, randperm(5)), (:b => 1, randcycle(5)))
+trace, weight = generate(genfoo, (5,), choices)
+@test weight ≈ log(1/factorial(5)) + log(1/factorial(4))
+trace, weight = generate(genfoo, (5,), choicemap((:a => 1,  ones(Int, 5))))
+@test weight == -Inf
+trace, weight = generate(genfoo, (5,), choicemap((:b => 1,  [1, 2, 3, 4, 5])))
+@test weight == -Inf
+
+end
+
 @testset "sample() statements" begin
 
 function foo()

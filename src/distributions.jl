@@ -171,3 +171,48 @@ Gen.has_output_grad(::LabeledCategorical) =
     false
 Gen.has_argument_grads(::LabeledCategorical) =
     (nothing,)
+
+"Uniform distribution over permutations of length N."
+struct RandomPermutation{T,N} <: Gen.Distribution{T} end
+RandomPermutation(n::T) where {T <: Integer} = RandomPermutation{Vector{T},n}()
+
+(d::RandomPermutation)() = Gen.random(d)
+
+@inline Gen.random(::RandomPermutation{T,N}) where {T,N} =
+    randperm(N)
+@inline Gen.logpdf(::RandomPermutation{T,N}, x::T) where {T,N} =
+    length(x) == N && isperm(x) ? -Gen.SpecialFunctions.logfactorial(N) : -Inf
+
+Gen.logpdf_grad(::RandomPermutation, x) =
+    (nothing,)
+Gen.has_output_grad(::RandomPermutation) =
+    false
+Gen.has_argument_grads(::RandomPermutation) =
+    (nothing,)
+
+"Uniform distribution over cyclic permutations of length N."
+struct RandomCycle{T,N} <: Gen.Distribution{T} end
+RandomCycle(n::T) where {T <: Integer} = RandomCycle{Vector{T},n}()
+
+(d::RandomCycle)() = Gen.random(d)
+
+function iscycle(v::Vector{<:Integer})
+    n = length(v); seen = falses(n); i = 1
+    for k in 1:n
+        (0 < i <= n) && (seen[i] ⊻= true) || return false
+        i = v[i]
+    end
+    return true
+end
+
+@inline Gen.random(::RandomCycle{T,N}) where {T,N} =
+    randcycle(N)
+@inline Gen.logpdf(::RandomCycle{T,N}, x::T) where {T,N} =
+    length(x) == N && iscycle(x) ? -Gen.SpecialFunctions.logfactorial(N-1) : -Inf
+
+Gen.logpdf_grad(::RandomCycle, x) =
+    (nothing,)
+Gen.has_output_grad(::RandomCycle) =
+    false
+Gen.has_argument_grads(::RandomCycle) =
+    (nothing,)
