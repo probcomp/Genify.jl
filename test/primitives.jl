@@ -315,4 +315,45 @@ trace = simulate(genfoo, (10,))
 
 end
 
+@testset "In-place primitives" begin
+
+function foo(A::Vector{Float64}, B::Vector{Int})
+    a = rand!(A)
+    b = randn!(A)
+    c = randexp!(A)
+    d = randperm!(B)
+    e = randcycle!(B)
+    f = shuffle!(B)
+    g = sample!(B, A)
+end
+
+genfoo = genify(foo, Vector{Float64}, Vector{Int})
+
+# Check that arrays were modified
+A, B = Vector{Float64}(undef, 10), Vector{Int}(undef, 10)
+trace = simulate(genfoo, (A, B))
+@test A == trace[:g]
+@test B == trace[:f]
+
+# Check types
+@test trace[:a] isa Vector{Float64}
+@test trace[:b] isa Vector{Float64}
+@test trace[:c] isa Vector{Float64}
+@test trace[:d] isa Vector{Int}
+@test trace[:e] isa Vector{Int}
+@test trace[:f] isa Vector{Int}
+@test trace[:g] isa Vector{Int}
+@test trace[] isa Vector{Float64}
+
+# Test ranges
+@test all(0 .<= trace[:a] .<= 1)
+@test all(-Inf .<= trace[:b] .<= Inf)
+@test all(0 .<= trace[:c] .<= Inf)
+@test isperm(trace[:d])
+@test Genify.iscycle(trace[:e])
+@test isperm(trace[:f])
+@test all(1 .<= trace[:g] .<= 10)
+
+end
+
 end

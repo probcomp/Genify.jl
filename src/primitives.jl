@@ -1,6 +1,7 @@
-## Rewrites random primitives as Gen distributions
+## Rewrite the following random primitives as calls to Gen distributions
 const randprims = Set([
-    rand, randn, randexp, randperm, randcycle, shuffle, sample
+    rand, randn, randexp, randperm, randcycle, shuffle, sample,
+    rand!, randn!, randexp!, randperm!, randcycle!, shuffle!, sample!
 ])
 const primnames = Set(Symbol(fn) for fn in randprims)
 
@@ -73,6 +74,12 @@ end
 @inline trace(::Options, state, addr::Address, ::typeof(rand), dist::D, d::Integer, dims::Integer...) where {D <: Distributions.Distribution} =
     Gen.traceat(state, ArrayedDistribution(WrappedDistribution(dist), d, dims...), params(dist), addr)
 
+# rand! (simulate in-place allocation)
+@inline trace(options::Options, state, addr::Address, ::typeof(rand!), A::AbstractArray{T}) where {T} =
+    copyto!(A, trace(options, state, addr::Address, rand, T, size(A)))
+@inline trace(options::Options, state, addr::Address, ::typeof(rand!), A::AbstractArray, S) =
+    copyto!(A, trace(options, state, addr::Address, rand, S, size(A)))
+
 ## randn ##
 
 # Default to sampling Float64 values
@@ -96,6 +103,10 @@ end
     Gen.traceat(state, ArrayedDistribution(Gen.normal, dims), (0, 1), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(randn), T::Type{Float64}, d::Integer, dims::Integer...) =
     Gen.traceat(state, ArrayedDistribution(Gen.normal, d, dims...), (0, 1), addr)
+
+# randn! (simulate in-place allocation)
+@inline trace(options::Options, state, addr::Address, ::typeof(randn!), A::AbstractArray{T}) where {T} =
+    copyto!(A, trace(options, state, addr::Address, randn, T, size(A)))
 
 ## randexp ##
 
@@ -121,6 +132,10 @@ end
 @inline trace(::Options, state, addr::Address, ::typeof(randexp), T::Type{Float64}, d::Integer, dims::Integer...) =
     Gen.traceat(state, ArrayedDistribution(Gen.exponential, d, dims...), (1,), addr)
 
+# randexp! (simulate in-place allocation)
+@inline trace(options::Options, state, addr::Address, ::typeof(randexp!), A::AbstractArray{T}) where {T} =
+    copyto!(A, trace(options, state, addr::Address, randexp, T, size(A)))
+
 ## randperm, randcycle. shuffle ##
 
 # Forward to corresponding Gen distributions
@@ -130,6 +145,14 @@ end
     Gen.traceat(state, RandomCycle(n), (), addr)
 @inline trace(options::Options, state, addr::Address, ::typeof(shuffle), v::AbstractArray) =
     Gen.traceat(state, RandomShuffle(v), (), addr)
+
+# Simulate in-place versions
+@inline trace(options::Options, state, addr::Address, ::typeof(randperm!), A::AbstractArray{<:Integer}) =
+    copyto!(A, trace(options, state, addr::Address, randperm, length(A)))
+@inline trace(options::Options, state, addr::Address, ::typeof(randcycle!), A::AbstractArray{<:Integer}) =
+    copyto!(A, trace(options, state, addr::Address, randcycle, length(A)))
+@inline trace(options::Options, state, addr::Address, ::typeof(shuffle!), v::AbstractArray) =
+    copyto!(v, trace(options, state, addr::Address, shuffle, copy(v)))
 
 ## sample ##
 
@@ -142,9 +165,17 @@ end
     Gen.traceat(state, ArrayedDistribution(LabeledUniform{T}(), dims), (a,), addr)
 
 # Weighted sample
+@inline trace(::Options, state, addr::Address, ::typeof(sample), w::AbstractWeights) =
+    Gen.traceat(state, Categorical(), (Vector(w) ./ sum(w)), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(sample), a::AbstractArray{T}, w::AbstractWeights) where {T} =
     Gen.traceat(state, LabeledCategorical{T}(), (a, w), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(sample), a::AbstractArray{T}, w::AbstractWeights, n::Integer) where {T} =
     Gen.traceat(state, ArrayedDistribution(LabeledCategorical{T}(), n), (a, w), addr)
 @inline trace(::Options, state, addr::Address, ::typeof(sample), a::AbstractArray{T}, w::AbstractWeights, dims::Dims) where {T} =
     Gen.traceat(state, ArrayedDistribution(LabeledCategorical{T}(), dims), (a, w), addr)
+
+# sample! (simulate in-place allocation)
+@inline trace(options::Options, state, addr::Address, ::typeof(sample!), a::AbstractArray, x::AbstractArray) =
+    copyto!(x, trace(options, state, addr::Address, sample, a, size(x)))
+@inline trace(options::Options, state, addr::Address, ::typeof(sample!), a::AbstractArray, w::AbstractWeights, x::AbstractArray) =
+    copyto!(x, trace(options, state, addr::Address, sample, a, w, size(x)))
