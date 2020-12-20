@@ -9,6 +9,7 @@ Gen = "ea4f424c-a589-11e8-07c0-fd5c91b9da4a"
 IRTools = "7869d1d1-7146-5819-86e3-90919afe41df"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]

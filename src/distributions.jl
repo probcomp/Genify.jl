@@ -1,3 +1,5 @@
+import SpecialFunctions: logfactorial
+
 "Wraps Distributions.jl distributions as Gen.jl distributions."
 struct WrappedDistribution{T,D <: Distributions.Distribution} <: Gen.Distribution{T}
     dist::D
@@ -44,10 +46,10 @@ ArrayedDistribution(d::Gen.Distribution{T}, dims...) where {T} =
 @inline Gen.random(d::ArrayedDistribution{T}, args...) where {T} =
     broadcast(x -> Gen.random(d.dist, args...), zeros(d.dims...))
 @inline Gen.logpdf(d::ArrayedDistribution{T}, x::AbstractArray, args...) where {T} =
-    size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
+    size(x) != d.dims ? error("size should be $(d.dims)") :
     sum(broadcast(y -> Gen.logpdf(d.dist, y, args...), x))
 Gen.logpdf_grad(d::ArrayedDistribution{T}, x::AbstractArray, args...) where {T} =
-    size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
+    size(x) != d.dims ? error("size should be $(d.dims)") :
     tuple(nothing, (nothing for a in Gen.has_argument_grads(d.dist)...))
 Gen.has_output_grad(::ArrayedDistribution{T}) where {T} =
     false
@@ -93,11 +95,11 @@ TypedArrayDistribution(T::Type, dims...) =
 
 # Integers are sampled uniformly from [typemin(T), typemax(T)]
 @inline Gen.logpdf(d::TypedArrayDistribution{T}, x::AbstractArray{<:Integer}) where {T <: Integer} =
-    size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
+    size(x) != d.dims ? error("size should be $(d.dims)") :
     all(typemin(T) .<= x .<= typemax(T)) ? -sizeof(T)*8*log(2)*prod(d.dims) : -Inf
 # Floats are sampled uniformly from (0, 1)
 @inline Gen.logpdf(d::TypedArrayDistribution{T}, x::AbstractArray{<:Real}) where {T <: AbstractFloat} =
-    size(x) != d.dims ? throw(DimensionMismatch("size should be $(d.dims)")) :
+    size(x) != d.dims ? error("size should be $(d.dims)") :
     all(0 .<= x .<= 1) ? 0.0 : -Inf
 
 Gen.logpdf_grad(::TypedArrayDistribution, x) =
@@ -181,7 +183,7 @@ RandomPermutation(n::T) where {T <: Integer} = RandomPermutation{Vector{T},n}()
 @inline Gen.random(::RandomPermutation{T,N}) where {T,N} =
     randperm(N)
 @inline Gen.logpdf(::RandomPermutation{T,N}, x::T) where {T,N} =
-    length(x) == N && isperm(x) ? -Gen.SpecialFunctions.logfactorial(N) : -Inf
+    length(x) == N && isperm(x) ? -logfactorial(N) : -Inf
 
 Gen.logpdf_grad(::RandomPermutation, x) =
     (nothing,)
@@ -208,11 +210,38 @@ end
 @inline Gen.random(::RandomCycle{T,N}) where {T,N} =
     randcycle(N)
 @inline Gen.logpdf(::RandomCycle{T,N}, x::T) where {T,N} =
-    length(x) == N && iscycle(x) ? -Gen.SpecialFunctions.logfactorial(N-1) : -Inf
+    length(x) == N && iscycle(x) ? -logfactorial(N-1) : -Inf
 
 Gen.logpdf_grad(::RandomCycle, x) =
     (nothing,)
 Gen.has_output_grad(::RandomCycle) =
     false
 Gen.has_argument_grads(::RandomCycle) =
+    (nothing,)
+
+"Uniform distribution over permutations (shuffles) of an array."
+struct RandomShuffle{T <: AbstractArray} <: Gen.Distribution{T}
+    v::T # Original array to be shuffled
+end
+
+(d::RandomShuffle)() = Gen.random(d)
+
+@inline Gen.random(d::RandomShuffle) =
+    shuffle(d.v)
+function Gen.logpdf(d::RandomShuffle{T}, xs::T) where {T}
+    if size(xs) != size(d.v) return -Inf end
+    v_counts = countmap(d.v)
+    score = sum(logfactorial.(values(v_counts))) - logfactorial(length(d.v))
+    for x in xs
+        x in keys(v_counts) || return -Inf
+        v_counts[x] -= 1
+    end
+    return all(values(v_counts) .== 0) ? score : -Inf
+end
+
+Gen.logpdf_grad(::RandomShuffle, x) =
+    (nothing,)
+Gen.has_output_grad(::RandomShuffle) =
+    false
+Gen.has_argument_grads(::RandomShuffle) =
     (nothing,)

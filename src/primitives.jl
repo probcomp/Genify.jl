@@ -121,13 +121,15 @@ end
 @inline trace(::Options, state, addr::Address, ::typeof(randexp), T::Type{Float64}, d::Integer, dims::Integer...) =
     Gen.traceat(state, ArrayedDistribution(Gen.exponential, d, dims...), (1,), addr)
 
-## randperm, randcycle ##
+## randperm, randcycle. shuffle ##
 
 # Forward to corresponding Gen distributions
 @inline trace(options::Options, state, addr::Address, ::typeof(randperm), n::Integer) =
     Gen.traceat(state, RandomPermutation(n), (), addr)
 @inline trace(options::Options, state, addr::Address, ::typeof(randcycle), n::Integer) =
     Gen.traceat(state, RandomCycle(n), (), addr)
+@inline trace(options::Options, state, addr::Address, ::typeof(shuffle), v::AbstractArray) =
+    Gen.traceat(state, RandomShuffle(v), (), addr)
 
 ## sample ##
 
