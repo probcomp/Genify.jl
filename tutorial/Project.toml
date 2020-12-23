@@ -1,0 +1,11 @@
+[deps]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+Gen = "ea4f424c-a589-11e8-07c0-fd5c91b9da4a"
+Genify = "bc757091-8f9c-4e02-8109-c8551f70438e"
+IRTools = "7869d1d1-7146-5819-86e3-90919afe41df"
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+TracedRandom = "03576162-b2ff-4022-a931-e67b9900fd45"
+Weave = "44d3d7a6-8a23-5bf8-98c5-b353f8df5ec9"
