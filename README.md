@@ -110,4 +110,4 @@ julia> mass_est
 4.288428017814824
 ```
 
-For more examples of programmable inference over transformed Julia code, see the [`examples`](examples) directory.
+For a more detailed tutorial, see the [`tutorial`](tutorial) directory. For more examples of programmable inference over transformed Julia code, see the [`examples`](examples) directory.
