@@ -10,6 +10,8 @@ WrappedDistribution(d::D) where {D <: MultivariateDistribution} =
     WrappedDistribution{Vector{eltype(D)},D}(d)
 WrappedDistribution(d::D) where {D <: MatrixDistribution} =
     WrappedDistribution{Matrix{eltype(D)},D}(d)
+WrappedDistribution(d::Truncated{D}) where {D} =
+    WrappedDistribution{eltype(D),typeof(d)}(d)
 
 (d::WrappedDistribution)(args...) = Gen.random(d, args...)
 
