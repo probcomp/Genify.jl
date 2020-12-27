@@ -25,21 +25,22 @@ using Random, Distributions
 
 function sir_model(T::Int, init_pop::Vector{Int},
                    β::Float64=0.5, γ::Float64=0.02)
-  pop_history = zeros(Int, 3, T)
-  pop_history[:, 1] = init_pop
-  tot_pop = sum(init_pop)
-  for t in 2:T
-      susceptible, infected, recovered = pop_history[:, t-1]
-      # Sample number of individuals who are newly infected and recovered
-      newly_infected = rand(Binomial(susceptible, β * infected / tot_pop))
-      newly_recovered = rand(Binomial(infected, γ))
-      # Update the population counts
-      susceptible -= newly_infected
-      infected += newly_infected - newly_recovered
-      recovered += newly_recovered
-      pop_history[:, t] = [susceptible, infected, recovered]
-  end
-  return pop_history
+    # Initialize population history
+    pop_history = zeros(Int, 3, T)
+    pop_history[:, 1] = init_pop
+    tot_pop = sum(init_pop)
+    for t in 2:T
+        susceptible, infected, recovered = pop_history[:, t-1]
+        # Sample number of individuals who are newly infected and recovered
+        newly_infected = rand(Binomial(susceptible, β * infected / tot_pop))
+        newly_recovered = rand(Binomial(infected, γ))
+        # Update the population counts
+        susceptible -= newly_infected
+        infected += newly_infected - newly_recovered
+        recovered += newly_recovered
+        pop_history[:, t] = [susceptible, infected, recovered]
+    end
+    return pop_history
 end;
 ```
 
@@ -60,7 +61,7 @@ However, because `sir_model` isn't written using a probabilistic
 programming system like Gen, we can't perform more complex queries, such as:
 - Given that 100 people were infected on day 10, how is the rest of the
   epidemic likely to evolve?
-- If at least 15 people recovered every day starting from day 20, what is the
+- If at most 15 people recovered every day starting from day 20, what is the
   likely recovery rate parameter, γ?
 
 In order to answer these and other queries, we need the following capabilities
@@ -339,25 +340,101 @@ the peak in infected individuals arrives considerably earlier than when
 30 people are infected on the same day.
 
 Now let's try tackling the second query:
-- If at least 15 people recovered every day starting from day 20 (assuming there
-  were enough infected people who could recover each day), what is the likely
-  recovery rate parameter, γ?
+- If at most 15 people recovered every day starting from day 20, what is
+  the likely recovery rate parameter, γ?
 
 This query is more complex than the first, for the following reasons:
 - It requires us to extend the model with uncertainty over the parameters
   β and γ, in order to perform *Bayesian parameter estimation*.
-- We need some way to sample simulations where at least 15 infected individuals
+- We need some way to sample simulations where at most 15 infected individuals
   recover everyday, from day 20 onward.
 
 Fortunately, both of these are easy to do with Gen! To extend `sir_model` with
 parameter uncertainty, we can simply wrap it in an `@gen` function which
-introduces priors over β and γ. But since this is a tutorial on Genify,
-let's try doing it using plain Julia functions instead:
+introduces priors over β and γ:
 ```julia
-function sir_param_model(T::Int, init_pop::Vector{Int})
+@gen function param_sir_model(T::Int, init_pop::Vector{Int})
+    β ~ uniform(0.0, 1.0)
+    γ ~ uniform(0.0, 1.0)
+    {*} ~ gen_sir_model(T, init_pop, β, γ)
+end;
+```
+Notice how, in the final line, we sampled from `gen_sir_model`, the transformed
+version of `sir_model`, since `gen_sir_model` is like any generative function
+in Gen.
+
+In order to sample simulations where at most 15 infected individuals recover
+from day 20 onwards, the simplest thing we could do is rejection sampling:
+Run `param_sir_model` many times, and throw away all samples which do not meet
+the above condition. Evidently, this is wasteful, and can lead to high variance
+when the condition is rare. Instead, we can use a *proposal distribution*,
+specified as a generative function, that only samples simulations that meet
+the condition. Furthermore, since we have Genify at our disposal, we can write
+this proposal using plain Julia:
+```julia
+function sir_proposal(T::Int, init_pop::Vector{Int}, day::Int, thresh::Int)
+    # Sample latent parameters
     β = rand(Uniform(0.0, 1.0))
     γ = rand(Uniform(0.0, 1.0))
-    return sir_model(T, init_pop, β, γ)
+    # Initialize population history
+    pop_history = zeros(Int, 3, T)
+    pop_history[:, 1] = init_pop
+    tot_pop = sum(init_pop)
+    for t in 2:T
+        susceptible, infected, recovered = pop_history[:, t-1]
+        # Sample newly infected individuals
+        newly_infected = rand(Binomial(susceptible, β * infected / tot_pop))
+        # Sample newly recovered individuals from a truncated distribution
+        r_dist = t >= day ?
+            truncated(Binomial(infected, γ), -1, thresh) : Binomial(infected, γ)
+        newly_recovered = rand(r_dist)
+        # Update the population counts
+        susceptible -= newly_infected
+        infected += newly_infected - newly_recovered
+        recovered += newly_recovered
+        pop_history[:, t] = [susceptible, infected, recovered]
+    end
+    return pop_history
 end
-gen_sir_param_model = genify(sir_param_model, Int, Vector{Int})
+gen_sir_proposal = genify(sir_proposal, Int, Vector{Int}, Int, Int);
 ```
+Notice that `sir_proposal` is almost identical to `sir_model`, except we have
+made sure to (i) sample the latent parameters β and γ; (ii) sample newly
+recovered individuals from a Binomial distribution truncated at the threshold
+of 15. Change (i) is necessary to ensure that `sir_proposal` matches the
+trace structure of `param_sir_model`, while change (ii) ensures that our
+condition is always met.
+
+Using this proposal distribution, we can now perform importance sampling
+in order to estimate the posterior distribution over γ:
+```julia
+model_args = (100, [990, 10, 0])
+recov_day, recov_thresh = 20, 15
+prop_args = (model_args..., recov_day, recov_thresh)
+n_samples = 5000
+traces, weights, _ =
+    importance_sampling(param_sir_model, model_args, choicemap(),
+                        gen_sir_proposal, prop_args, n_samples)
+
+γ_mean = sum(getindex.(traces, :γ) .* exp.(weights))
+println("γ posterior mean estimate: $γ_mean")
+histogram(getindex.(traces, :γ), bins=20, weights=exp.(weights);
+          linecolor=palette(:default)[1], legend=false,
+          xlabel="γ (recovery rate)", ylabel="Probability")
+```
+Importance sampling produces a rather unintuitive posterior over the
+recovery rate γ. Most of the posterior mass is towards the right, suggesting
+a high recovery rate, with only a small peak for very low values of γ. This is
+despite the condition stipulating that not many people recover everyday after
+day 20. The intuitive explanation for this is a low recovery rate, which is
+captured by the small peak to the left. However, there is another explanation:
+the population recovers so quickly that by day 20, there are no more
+infected individuals, and so the number of new recoveries each day is zero from
+then on! Without a Bayesian analysis, we may not have discovered this competing
+diversity of explanations.
+
+That brings us to the end of this tutorial! For more examples of Genify being
+used for programmable inference, check out the `examples` directory in the
+[Genify.jl](https://github.com/probcomp/Genify.jl) repository. To learn more
+about Gen and programmable inference, check out the website at
+<https://www.gen.dev/>.
