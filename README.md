@@ -15,7 +15,7 @@ add https://github.com/probcomp/Genify.jl.git
 
 `Genify.jl` allows one to convert stochastic functions from plain Julia into Gen, enabling programmable inference via the manipulation of internal random variables. The user-level function for transforming Julia methods is `genify`, documented below:
 
-> `genify(fn, arg_types...; kwargs...)` or `genify(options, fn, arg_types)`
+> `genify(fn, arg_types...; kwargs...)` or `genify(options, fn, arg_types...)`
 >
 > Transforms a Julia method into a dynamic Gen function.
 >

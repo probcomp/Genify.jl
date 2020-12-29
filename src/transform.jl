@@ -47,7 +47,7 @@ signature(::TracedFunction{S}) where {S} = S
 
 """
     genify(fn, arg_types...; kwargs...)
-    genify(options, fn, arg_types)
+    genify(options, fn, arg_types...)
 
 Transforms a Julia method into a dynamic Gen function.
 
