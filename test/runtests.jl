@@ -1,5 +1,6 @@
 using Test, Genify, IRTools
-using Random, StatsBase, Distributions, Gen
+using Random, TracedRandom, StatsBase
+using Distributions, Gen
 
 using Genify: unwrap, transform!
 using MacroTools: isexpr

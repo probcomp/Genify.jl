@@ -180,8 +180,12 @@ end
 @testset "Manual addressing" begin
 
 function model(mu::Real)
-    θ = rand(:theta, LogNormal(mu, 1))
-    x = rand(:obs, observe, θ)
+    θ = rand(here, submodel, mu) # Test splicing of address namespaces
+    x = rand(:obs, observe, θ) # Test nesting of address namespaces
+end
+
+function submodel(mu::Real)
+    return rand(:theta, LogNormal(mu, 1))
 end
 
 function observe(theta::Real)

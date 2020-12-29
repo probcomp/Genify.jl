@@ -1,3 +1,5 @@
+import TracedRandom: Here
+
 ## Rewrite the following random primitives as calls to Gen distributions
 const randprims = Set([
     rand, randn, randexp, randperm, randcycle, shuffle, sample,
@@ -16,8 +18,12 @@ for fn in randprims
 end
 
 # Forward traced function calls that are manually addressed via rand
-trace(options::Options, state, ::ManualAddress, ::typeof(rand), addr::Address, fn::Function, args...) =
+@inline trace(options::Options, state, ::ManualAddress, ::typeof(rand), addr::Address, fn::Function, args...) =
     trace(options, state, addr::Address, fn, args...)
+
+# Splice function calls with `here` addresses into the current context
+@inline trace(options::Options, state, ::ManualAddress, ::typeof(rand), ::Here, fn::Function, args...) =
+    splice(options, state, fn, args...)
 
 ## Strip RNGs supplied to primitives
 
