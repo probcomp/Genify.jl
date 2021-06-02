@@ -74,10 +74,16 @@ TypedScalarDistribution(T::Type) = TypedScalarDistribution{T}()
 @inline Gen.logpdf(d::TypedScalarDistribution{T}, x::Real) where {T <: AbstractFloat} =
     0 <= x <= 1 ? 0.0 : -Inf
 
-Gen.logpdf_grad(::TypedScalarDistribution, x) =
+Gen.logpdf_grad(::TypedScalarDistribution{T}, x::Integer) where {T <: Integer} =
     (nothing,)
-Gen.has_output_grad(::TypedScalarDistribution) =
+Gen.logpdf_grad(::TypedScalarDistribution{T}, x::Real) where {T <: AbstractFloat} =
+    0.0
+
+Gen.has_output_grad(::TypedScalarDistribution{T}) where {T <: Integer} =
     false
+Gen.has_output_grad(::TypedScalarDistribution{T}) where {T <: AbstractFloat} =
+    true
+
 Gen.has_argument_grads(::TypedScalarDistribution) =
     ()
 
@@ -104,10 +110,17 @@ TypedArrayDistribution(T::Type, dims...) =
     size(x) != d.dims ? error("size should be $(d.dims)") :
     all(0 .<= x .<= 1) ? 0.0 : -Inf
 
-Gen.logpdf_grad(::TypedArrayDistribution, x) =
-    (nothing,)
-Gen.has_output_grad(::TypedArrayDistribution) =
+Gen.logpdf_grad(d::TypedArrayDistribution{T}, x::AbstractArray{<:Integer}) where {T <: Integer} =
+    size(x) != d.dims ? error("size should be $(d.dims)") : (nothing,)
+Gen.logpdf_grad(d::TypedArrayDistribution{T}, x::AbstractArray{<:Real}) where {T <: AbstractFloat} =
+    size(x) != d.dims ? error("size should be $(d.dims)") :
+    zeros(d.dims)
+
+Gen.has_output_grad(::TypedArrayDistribution{T}) where {T <: Integer} =
     false
+Gen.has_output_grad(::TypedArrayDistribution{T}) where {T <: AbstractFloat} =
+    true
+
 Gen.has_argument_grads(::TypedArrayDistribution) =
     ()
 
@@ -131,7 +144,7 @@ Gen.logpdf_grad(::LabeledUniform, x, labels) =
 Gen.has_output_grad(::LabeledUniform) =
     false
 Gen.has_argument_grads(::LabeledUniform) =
-    (nothing,)
+    (false,)
 
 "Labeled uniform distribution over set-like collections."
 struct SetUniform{T} <: Gen.Distribution{T} end
@@ -154,7 +167,7 @@ Gen.logpdf_grad(::SetUniform, x, support) =
 Gen.has_output_grad(::SetUniform) =
     false
 Gen.has_argument_grads(::SetUniform) =
-    (nothing,)
+    (false,)
 
 "Categorical distribution over an array of labels."
 struct LabeledCategorical{T} <: Gen.Distribution{T} end
@@ -165,16 +178,19 @@ LabeledCategorical() = LabeledCategorical{Any}()
 @inline Gen.random(::LabeledCategorical{T}, labels::AbstractArray{T}, weights::AbstractWeights) where {T} =
     sample(labels, weights)
 @inline Gen.logpdf(::LabeledCategorical{T}, x::T, labels::AbstractArray{T}, weights::AbstractWeights) where {T} =
-    log(sum((x .== vec(labels)) .* Vector(weights)) / sum(weights))
+    log(sum((x .== vec(labels)) .* Vector(weights))) - log(sum(weights))
 @inline Gen.logpdf(::LabeledCategorical{T}, x::T, labels::AbstractArray{T}, weights::UnitWeights) where {T} =
     log(sum(x .== labels) / length(labels))
 
-Gen.logpdf_grad(::LabeledCategorical, x, labels) =
-    (nothing, nothing)
+function Gen.logpdf_grad(::LabeledCategorical, x, labels, weights::AbstractWeights)
+    grad = (x .== vec(labels)) .* (1. ./ Vector(weights)) .- 1.0 ./ sum(weights)
+    return (nothing, nothing, grad)
+end
+
 Gen.has_output_grad(::LabeledCategorical) =
     false
 Gen.has_argument_grads(::LabeledCategorical) =
-    (nothing,)
+    (false, true)
 
 "Uniform distribution over permutations of length N."
 struct RandomPermutation{T,N} <: Gen.Distribution{T} end
@@ -192,7 +208,7 @@ Gen.logpdf_grad(::RandomPermutation, x) =
 Gen.has_output_grad(::RandomPermutation) =
     false
 Gen.has_argument_grads(::RandomPermutation) =
-    (nothing,)
+    ()
 
 "Uniform distribution over cyclic permutations of length N."
 struct RandomCycle{T,N} <: Gen.Distribution{T} end
@@ -219,7 +235,7 @@ Gen.logpdf_grad(::RandomCycle, x) =
 Gen.has_output_grad(::RandomCycle) =
     false
 Gen.has_argument_grads(::RandomCycle) =
-    (nothing,)
+    ()
 
 "Uniform distribution over permutations (shuffles) of an array."
 struct RandomShuffle{T <: AbstractArray} <: Gen.Distribution{T}
@@ -246,4 +262,4 @@ Gen.logpdf_grad(::RandomShuffle, x) =
 Gen.has_output_grad(::RandomShuffle) =
     false
 Gen.has_argument_grads(::RandomShuffle) =
-    (nothing,)
+    ()
