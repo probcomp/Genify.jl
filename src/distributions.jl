@@ -1,17 +1,20 @@
 import SpecialFunctions: logfactorial
 
+safe_eltype(d::Distributions.Distribution) = eltype(d)
+safe_eltype(d::ContinuousDistribution) = float(eltype(d))
+
 "Wraps Distributions.jl distributions as Gen.jl distributions."
 struct WrappedDistribution{T,D <: Distributions.Distribution} <: Gen.Distribution{T}
     dist::D
 end
 WrappedDistribution(d::D) where {D <: UnivariateDistribution} =
-    WrappedDistribution{eltype(D),D}(d)
+    WrappedDistribution{safe_eltype(d),D}(d)
 WrappedDistribution(d::D) where {D <: MultivariateDistribution} =
-    WrappedDistribution{Vector{eltype(D)},D}(d)
+    WrappedDistribution{Vector{safe_eltype(d)},D}(d)
 WrappedDistribution(d::D) where {D <: MatrixDistribution} =
-    WrappedDistribution{Matrix{eltype(D)},D}(d)
+    WrappedDistribution{Matrix{safe_eltype(d)},D}(d)
 WrappedDistribution(d::Truncated{D}) where {D} =
-    WrappedDistribution{eltype(D),typeof(d)}(d)
+    WrappedDistribution{safe_eltype(d),typeof(d)}(d)
 
 (d::WrappedDistribution)(args...) = Gen.random(d, args...)
 
