@@ -130,7 +130,7 @@ end
 @testset "rand(::Distributions.Distribution) statements" begin
 
 function foo(dims...)
-    a = rand(Dirichlet(5, 2))
+    a = rand(Dirichlet(5, 2.0))
     b = rand(Categorical(a))
     c = rand(Wishart(b+2, [1.0 0.0; 0.0 1.0]))
     d = rand(Normal(0, 1), dims...)
