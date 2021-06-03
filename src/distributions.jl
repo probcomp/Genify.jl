@@ -1,5 +1,12 @@
 import SpecialFunctions: logfactorial
 
+disttype(d::Distributions.Distribution) =
+    disttype(typeof(d))
+disttype(D::Type{<:Distributions.Distribution}) =
+    Base.typename(D).wrapper
+disttype(D::Type{Distributions.Categorical}) =
+    Distributions.Categorical
+
 safe_eltype(d::Distributions.Distribution) = eltype(d)
 safe_eltype(d::ContinuousDistribution) = float(eltype(d))
 
@@ -22,12 +29,12 @@ WrappedDistribution(d::Truncated{D}) where {D} =
     rand(d.dist)
 @inline Gen.logpdf(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
     Distributions.logpdf(d.dist, x)
-Gen.logpdf_grad(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
-    tuple(nothing, (nothing for p in params(d.dist))...)
-Gen.has_output_grad(::WrappedDistribution{T,D}) where {T,D} =
-    false
+@inline Gen.logpdf_grad(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
+    Zygote.gradient((x, args...) -> Distributions.logpdf(disttype(d.dist)(args...), x), T(x), args...)
+Gen.has_output_grad(d::WrappedDistribution{T,D}) where {T,D} =
+    !Gen.is_discrete(d)
 Gen.has_argument_grads(d::WrappedDistribution{T,D}) where {T,D} =
-    tuple((false for p in params(d.dist))...)
+    tuple((!(partype(d.dist) <: Integer) for p in params(d.dist))...)
 
 Gen.is_discrete(::WrappedDistribution) = false
 Gen.is_discrete(::WrappedDistribution{T,D}) where {T,D <: DiscreteDistribution} = true

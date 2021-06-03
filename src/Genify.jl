@@ -2,7 +2,7 @@ module Genify
 
 export genify, genified
 
-using Gen, Distributions, StatsBase, Random, IRTools
+using Gen, Distributions, DistributionsAD, StatsBase, Random, Zygote, IRTools
 using IRTools:
     IR, Block, Branch, Variable,
     arguments, argument!, deletearg!, recurse!, xcall, @dynamo,
