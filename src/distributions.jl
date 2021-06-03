@@ -23,8 +23,8 @@ Gen.logpdf_grad(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
     tuple(nothing, (nothing for p in params(d.dist))...)
 Gen.has_output_grad(::WrappedDistribution{T,D}) where {T,D} =
     false
-Gen.has_argument_grads(::WrappedDistribution{T,D}) where {T,D} =
-    tuple((false for p in params(D()))...)
+Gen.has_argument_grads(d::WrappedDistribution{T,D}) where {T,D} =
+    tuple((false for p in params(d.dist))...)
 
 Gen.is_discrete(::WrappedDistribution) = false
 Gen.is_discrete(::WrappedDistribution{T,D}) where {T,D <: DiscreteDistribution} = true
@@ -50,13 +50,20 @@ ArrayedDistribution(d::Gen.Distribution{T}, dims...) where {T} =
 @inline Gen.logpdf(d::ArrayedDistribution{T}, x::AbstractArray, args...) where {T} =
     size(x) != d.dims ? error("size should be $(d.dims)") :
     sum(broadcast(y -> Gen.logpdf(d.dist, y, args...), x))
-Gen.logpdf_grad(d::ArrayedDistribution{T}, x::AbstractArray, args...) where {T} =
-    size(x) != d.dims ? error("size should be $(d.dims)") :
-    tuple(nothing, (nothing for a in Gen.has_argument_grads(d.dist)...))
-Gen.has_output_grad(::ArrayedDistribution{T}) where {T} =
-    false
-Gen.has_argument_grads(::ArrayedDistribution{T}) where {T} =
-    (false for a in Gen.has_argument_grads(d.dist))
+
+function Gen.logpdf_grad(d::ArrayedDistribution{T}, x::AbstractArray, args...) where {T}
+    if size(x) != d.dims error("size should be $(d.dims)") end
+    grads = broadcast(y -> Gen.logpdf_grad(d.dist, y, args...), x)
+    out_grad = Gen.has_output_grad(d) ? first.(grads) : nothing
+    arg_grads = (has_grad ? getindex.(grads, i+1) : nothing
+                 for (i, has_grad) in enumerate(Gen.has_argument_grads(d.dist)))
+    return (out_grad, arg_grads...)
+end
+
+Gen.has_output_grad(d::ArrayedDistribution{T}) where {T} =
+    Gen.has_output_grad(d.dist)
+Gen.has_argument_grads(d::ArrayedDistribution{T}) where {T} =
+    Gen.has_argument_grads(d.dist)
 
 "Typed scalar distribution, equivalent to `rand(T)` for type `T`."
 struct TypedScalarDistribution{T<:Real} <: Gen.Distribution{T} end
@@ -74,9 +81,9 @@ TypedScalarDistribution(T::Type) = TypedScalarDistribution{T}()
 @inline Gen.logpdf(d::TypedScalarDistribution{T}, x::Real) where {T <: AbstractFloat} =
     0 <= x <= 1 ? 0.0 : -Inf
 
-Gen.logpdf_grad(::TypedScalarDistribution{T}, x::Integer) where {T <: Integer} =
+@inline Gen.logpdf_grad(::TypedScalarDistribution{T}, x::Integer) where {T <: Integer} =
     (nothing,)
-Gen.logpdf_grad(::TypedScalarDistribution{T}, x::Real) where {T <: AbstractFloat} =
+@inline Gen.logpdf_grad(::TypedScalarDistribution{T}, x::Real) where {T <: AbstractFloat} =
     0.0
 
 Gen.has_output_grad(::TypedScalarDistribution{T}) where {T <: Integer} =
@@ -110,11 +117,10 @@ TypedArrayDistribution(T::Type, dims...) =
     size(x) != d.dims ? error("size should be $(d.dims)") :
     all(0 .<= x .<= 1) ? 0.0 : -Inf
 
-Gen.logpdf_grad(d::TypedArrayDistribution{T}, x::AbstractArray{<:Integer}) where {T <: Integer} =
+@inline Gen.logpdf_grad(d::TypedArrayDistribution{T}, x::AbstractArray{<:Integer}) where {T <: Integer} =
     size(x) != d.dims ? error("size should be $(d.dims)") : (nothing,)
-Gen.logpdf_grad(d::TypedArrayDistribution{T}, x::AbstractArray{<:Real}) where {T <: AbstractFloat} =
-    size(x) != d.dims ? error("size should be $(d.dims)") :
-    zeros(d.dims)
+@inline Gen.logpdf_grad(d::TypedArrayDistribution{T}, x::AbstractArray{<:Real}) where {T <: AbstractFloat} =
+    size(x) != d.dims ? error("size should be $(d.dims)") : (zeros(d.dims),)
 
 Gen.has_output_grad(::TypedArrayDistribution{T}) where {T <: Integer} =
     false
@@ -182,7 +188,7 @@ LabeledCategorical() = LabeledCategorical{Any}()
 @inline Gen.logpdf(::LabeledCategorical{T}, x::T, labels::AbstractArray{T}, weights::UnitWeights) where {T} =
     log(sum(x .== labels) / length(labels))
 
-function Gen.logpdf_grad(::LabeledCategorical, x, labels, weights::AbstractWeights)
+@inline function Gen.logpdf_grad(::LabeledCategorical, x, labels, weights::AbstractWeights)
     grad = (x .== vec(labels)) .* (1. ./ Vector(weights)) .- 1.0 ./ sum(weights)
     return (nothing, nothing, grad)
 end
