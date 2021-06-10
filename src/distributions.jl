@@ -1,14 +1,18 @@
 import SpecialFunctions: logfactorial
+import Gen.ReverseDiff: TrackedReal
 
 disttype(d::Distributions.Distribution) =
     disttype(typeof(d))
 disttype(D::Type{<:Distributions.Distribution}) =
     Base.typename(D).wrapper
-disttype(D::Type{Distributions.Categorical}) =
+disttype(D::Type{<:Distributions.Categorical}) =
     Distributions.Categorical
 
-safe_eltype(d::Distributions.Distribution) = eltype(d)
-safe_eltype(d::ContinuousDistribution) = float(eltype(d))
+safe_eltype(d::Distributions.Distribution) = untracked_type(eltype(d))
+safe_eltype(d::ContinuousDistribution) = float(untracked_type(eltype(d)))
+
+untracked_type(T::Type) = T
+untracked_type(T::Type{<:TrackedReal{V}}) where {V} = V
 
 "Wraps Distributions.jl distributions as Gen.jl distributions."
 struct WrappedDistribution{T,D <: Distributions.Distribution} <: Gen.Distribution{T}
@@ -28,7 +32,7 @@ WrappedDistribution(d::Truncated{D}) where {D} =
 @inline Gen.random(d::WrappedDistribution{T,D}, args...) where {T,D} =
     rand(d.dist)
 @inline Gen.logpdf(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
-    Distributions.logpdf(d.dist, x)
+    Distributions.logpdf(disttype(d.dist)(args...), x)
 @inline Gen.logpdf_grad(d::WrappedDistribution{T,D}, x, args...) where {T,D} =
     Zygote.gradient((x, args...) -> Distributions.logpdf(disttype(d.dist)(args...), x), T(x), args...)
 Gen.has_output_grad(d::WrappedDistribution{T,D}) where {T,D} =

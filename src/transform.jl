@@ -1,27 +1,42 @@
 using MacroTools: isexpr, iscall
+using Base: return_types
 
 """
-    Options{recurse::Bool, useslots::Bool, naming::Symbol}
+    Options{recurse::Bool, useslots::Bool, naming::Symbol, gradients::Symbol}
 
 Option type that specifies how Julia methods should be transformed into
 generative functions. These options are passed as type parameters so
 that they are accessible within `@generated` functions.
 """
-struct Options{R, U, S} end
-const MinimalOptions = Options{false, false, :static}
-const DefaultOptions = Options{true, true, :static}
-const ManualOptions = Options{true, false, :manual}
+struct Options{R, U, S, G} end
+const MinimalOptions = Options{false, false, :static, :none}
+const DefaultOptions = Options{true, true, :static, :none}
+const ManualOptions = Options{true, false, :manual, :none}
 const named_options = Dict{Symbol,Options}(
     :minimal => MinimalOptions(),
     :default => DefaultOptions(),
     :manual => ManualOptions()
 )
 
-Options(recurse::Bool, useslots::Bool, naming::Symbol) =
-    Options{recurse, useslots, naming}()
+Options(recurse::Bool, useslots::Bool, naming::Symbol, gradients::Symbol) =
+    Options{recurse, useslots, naming, gradients}()
 
 "Unpack option type parameters as a tuple."
-unpack(::Options{R,U,S}) where {R, U, S} = (R, U, S)
+unpack(::Options{R,U,S,G}) where {R, U, S, G} = (R, U, S, G)
+
+"Determine if type supports gradient propagation through arguments."
+has_arg_grad(T::Type, mode::Symbol) =
+    mode == :loose ? Real <: T : mode == :strict ? T === Real : false
+has_arg_grad(A::Type{<:AbstractArray{T}}, mode::Symbol) where {T} =
+    mode == :loose ? Real <: T : mode == :strict ? T === Real : false
+
+"Determine if type supports gradient propagation as a return value."
+has_ret_grad(T::Type, mode::Symbol) =
+    mode == :loose ? Real <: T || (T <: Real && !(T <: Integer)) :
+    mode == :strict ? T <: Real && !(T <: Integer) : false
+has_ret_grad(A::Type{<:AbstractArray{T}}, mode::Symbol) where {T} =
+    mode == :loose ? Real <: T || (T <: Real && !(T <: Integer)) :
+    mode == :strict ? T <: Real && !(T <: Integer) : false
 
 """
     TracedFunction{S <: Tuple}
@@ -63,47 +78,62 @@ Transforms a Julia method into a dynamic Gen function.
 - `naming::Symbol=:static`: scheme for generating address names, defaults to
         static generation at compile time. Use `:manual` for user-specified
         addresses (e.g., `rand(:z, Normal(0, 1))`)
+- `gradients::Symbol=:none`: support for gradient propogation through arguments
+        and return value, defaults to `none`. Automatic determination of
+        support for gradients can be specified using `:loose` or `:strict`
+        typing rules. Can be manually overriden using `arg_grads` and
+        `output_grad` for this function, but not for nested functions.
 - `options`: the above options can also be provided as parameters in an
         [`Options`](@ref) struct, or as a `Symbol` from the list of named
         option sets overriding any other values specified:
-  - `:minimal` corresponds to `recurse=false, useslots=false, naming=:static`
-  - `:default` corresponds to `recurse=true, useslots=true, naming=:static`
-  - `:manual` corresponds to `recurse=true, useslots=false, naming=:manual`
+  - `:minimal`: `recurse=false, useslots=false, naming=:static, gradients=:none`
+  - `:default`: `recurse=true, useslots=true, naming=:static, gradients=:none`
+  - `:manual`: `recurse=true, useslots=false, naming=:manual, gradients=:none`
+- `arg_grads`: iterable of `Bool` values specifying whether each argument of
+        `fn` supports gradients
+- `output_grad`: flag specifying whether the output of `fn` supports gradients
 """
-function genify(options::Options, fn, arg_types::Type...)
+function genify(options::Options, fn, arg_types::Type...;
+                arg_grads=nothing, output_grad=nothing)
     # Get name and IR of function
     fn_name = nameof(fn)
     n_args = length(arg_types)
     # Get type information
     fn_type = fn isa Type ? Type{fn} : typeof(fn)
+    orig_types = arg_types
     arg_types = signature(fn_type, arg_types...)
     if isnothing(arg_types) error("No method definition available for $fn.") end
+    # Determine support for gradients
+    _, _, _, gradients = unpack(options)
+    has_argument_grads = isnothing(arg_grads) ?
+        has_arg_grad.(arg_types, gradients) : collect(arg_grads)
+    accepts_output_grad = isnothing(output_grad) ?
+        has_ret_grad(return_types(fn, orig_types)[1], gradients) : output_grad
     # Construct traced function
     traced_fn = TracedFunction(fn, Tuple{arg_types...}, options)
     # Embed traced function within dynamic generative function
     arg_defaults = fill(nothing, n_args)
-    has_argument_grads = fill(false, n_args)
-    accepts_output_grad = false
     gen_fn = Gen.DynamicDSLFunction{Any}(
         Dict(), Dict(), arg_types, false, arg_defaults,
         traced_fn, has_argument_grads, accepts_output_grad)
     return gen_fn
 end
 
-function genify(options::Symbol, fn, arg_types::Type...)
-    return genify(named_options[options], fn, arg_types...)
+function genify(options::Symbol, fn, arg_types::Type...; kwargs...)
+    return genify(named_options[options], fn, arg_types...; kwargs...)
 end
 
 function genify(fn::Union{Function,Type}, arg_types::Type...;
-                options=nothing, recurse::Bool=true,
-                useslots::Bool=true, naming::Symbol=:static)
-    options = isnothing(options) ? Options(recurse, useslots, naming) : options
-    return genify(options, fn, arg_types...)
+                options=nothing, recurse::Bool=true, useslots::Bool=true,
+                naming::Symbol=:static, gradients::Symbol=:none, kwargs...)
+    options = isnothing(options) ?
+        Options(recurse, useslots, naming, gradients) : options
+    return genify(options, fn, arg_types...; kwargs...)
 end
 
 "Memoized [`genify`](@ref) that compiles specialized versions of itself."
-function genified(options::Options, fn, arg_types::Type...)
-    gen_fn = genify(options, fn, arg_types...)
+function genified(options::Options, fn, arg_types::Type...; kwargs...)
+    gen_fn = genify(options, fn, arg_types...; kwargs...)
     op_type, fn_type = typeof(options), typeof(fn)
     args = [:(::$(QuoteNode(Type{T}))) for T in arg_types]
     @eval function genified(options::$op_type, fn::$fn_type, $(args...))
@@ -112,15 +142,16 @@ function genified(options::Options, fn, arg_types::Type...)
     return gen_fn
 end
 
-function genified(options::Symbol, fn, arg_types::Type...)
-    return genified(named_options[options], fn, arg_types...)
+function genified(options::Symbol, fn, arg_types::Type...; kwargs...)
+    return genified(named_options[options], fn, arg_types...; kwargs...)
 end
 
 function genified(fn::Union{Function,Type}, arg_types::Type...;
-                  options=nothing, recurse::Bool=true,
-                  useslots::Bool=true, naming::Symbol=:static)
-    options = isnothing(options) ? Options(recurse, useslots, naming) : options
-    return genified(options, fn, arg_types...)
+                  options=nothing, recurse::Bool=true, useslots::Bool=true,
+                  naming::Symbol=:static, gradients::Symbol=:none, kwargs...)
+    options = isnothing(options) ?
+        Options(recurse, useslots, naming, gradients) : options
+    return genified(options, fn, arg_types...; kwargs...)
 end
 
 """

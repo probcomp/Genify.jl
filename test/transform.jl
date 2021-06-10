@@ -90,6 +90,21 @@ trace, weight, _, discard =
 @test discard[:coin] == false
 @test weight == log(0.25) - log(0.75)
 
+# Test gradient propagation
+function bar(mu::Real, std::Real)
+    z = rand(Normal(mu, std))
+    return 2*z
+end
+
+genbar = genify(bar, Float64, Float64, gradients=:strict)
+@test genbar.has_argument_grads == [true, true]
+@test genbar.accepts_output_grad == true
+
+trace, _ = generate(genbar, (0.0, 1.0), choicemap(:z => 0.0))
+arg_grads, _, choice_grads = choice_gradients(trace, select(:z), 1.0)
+@test arg_grads == (0.0, -1.0)
+@test choice_grads[:z] == 2.0
+
 # Test handling of parametric methods
 function foo(x::Array{T,N}, start::T, tup::Tuple{Int,T}) where {T, N}
     y = rand(T, size(x))
